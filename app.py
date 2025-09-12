@@ -4,7 +4,7 @@ import csv, os
 app = Flask(__name__)
 app.secret_key = "secret101"  # Needed for flash messages
 
-CSV_FILE = "users.csv"
+CSV_FILE = os.path.join("FoodTruckService", "users.csv")
 
 # This below ensures CSV file exists
 if not os.path.exists(CSV_FILE) or os.path.getsize(CSV_FILE) == 0:
