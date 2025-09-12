@@ -1,0 +1,40 @@
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f4f9;
+    text-align: center;
+}
+
+nav {
+    background: #ff6600;
+    padding: 10px;
+}
+
+nav a {
+    color: white;
+    margin: 0 10px;
+    text-decoration: none;
+}
+
+.container {
+    margin-top: 30px;
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 15px;
+    background: #ff6600;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    margin: 5px;
+}
+
+.btn:hover {
+    background: #cc5200;
+}
+
+.flash-messages {
+    color: green;
+    list-style: none;
+    padding: 0;
+}
