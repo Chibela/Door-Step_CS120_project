@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <link rel="icon" type="image/png" href="Images/FoodTruck.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Door Step Food Truck - Order Online</title>
     <style>
@@ -81,6 +82,7 @@
             padding: 0.5rem 1rem;
             border-radius: 25px;
         }
+        
         .user-info a{
             color: white;
             text-decoration: none;
@@ -95,7 +97,7 @@
             background: rgba(255,255,255,0.2);
             transform: translateY(-2px);
         }
-        
+
         /* Main Content */
         .main-content {
             padding: 2rem 0;
@@ -177,6 +179,18 @@
         
         .btn-success:hover {
             box-shadow: 0 6px 20px rgba(86,171,47,0.6);
+        }
+        
+        .btn-success:disabled {
+            background: linear-gradient(135deg, #ccc, #bbb);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        
+        .btn-success:disabled:hover {
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transform: none;
         }
         
         /* Forms */
@@ -329,8 +343,9 @@
         
         .cart-item {
             display: flex;
+            flex-direction: column;
             justify-content: space-between;
-            align-items: center;
+            align-items: left;
             padding: 1rem 0;
             border-bottom: 1px solid #eee;
         }
@@ -352,6 +367,134 @@
             font-size: 1.2rem;
             font-weight: 700;
             text-align: center;
+        }
+        
+        .cart-breakdown {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            color: #555;
+        }
+        
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+            padding-bottom: 0.8rem;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        
+        .breakdown-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #ff6b6b;
+        }
+        
+        .tip-section {
+            background: white;
+            padding: 1.5rem;
+            margin-top: 1rem;
+            border-radius: 10px;
+            border: 2px solid #e1e5e9;
+        }
+        
+        .tip-section label {
+            display: block;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .tip-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.8rem;
+        }
+        
+        .tip-btn {
+            background: white;
+            border: 2px solid #e1e5e9;
+            color: #666;
+            padding: 0.8rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        
+        .tip-btn:hover, .tip-btn.active {
+            background: #ff6b6b;
+            color: white;
+            border-color: #ff6b6b;
+        }
+        
+        .cart-item-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+        }
+        
+        .qty-controls {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #f0f0f0;
+            border-radius: 6px;
+            padding: 0.3rem;
+        }
+        
+        .qty-btn {
+            background: white;
+            border: 1px solid #ddd;
+            color: #666;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .qty-btn:hover {
+            background: #ff6b6b;
+            color: white;
+            border-color: #ff6b6b;
+        }
+        
+        .qty-display {
+            font-weight: 600;
+            color: #333;
+            min-width: 25px;
+            text-align: center;
+        }
+        
+        .remove-btn {
+            background: #ff4757;
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            margin-left: auto;
+        }
+        
+        .remove-btn:hover {
+            background: #ff3838;
+            transform: scale(1.05);
         }
         
         .cart-overlay {
@@ -471,8 +614,32 @@
             <div id="cartItems">
                 <p>Your cart is empty</p>
             </div>
-            <div class="cart-total" id="cartTotal">
-                Total: $0.00
+            <div class="cart-breakdown" id="cartBreakdown" style="display: none;">
+                <div class="breakdown-item">
+                    <span>Subtotal:</span>
+                    <span id="subtotalAmount">$0.00</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Tax (10%):</span>
+                    <span id="taxAmount">$0.00</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Tip:</span>
+                    <span id="tipAmount">$0.00</span>
+                </div>
+                <div class="breakdown-item">
+                    <span>Total:</span>
+                    <span id="finalTotal">$0.00</span>
+                </div>
+            </div>
+            <div class="tip-section" id="tipSection" style="display: none;">
+                <label>💰 Add a Tip:</label>
+                <div class="tip-buttons">
+                    <button class="tip-btn active" onclick="selectTip(0)">No Tip</button>
+                    <button class="tip-btn" onclick="selectTip(10)">+$10</button>
+                    <button class="tip-btn" onclick="selectTip(15)">+$15</button>
+                    <button class="tip-btn" onclick="selectTip(20)">+$20</button>
+                </div>
             </div>
             <button class="btn btn-success" onclick="checkout()" style="width: 100%; margin-top: 1rem;">
                 Place Order
@@ -681,6 +848,8 @@
         let currentUser = null;
         let cart = [];
         let currentFilter = 'all';
+        let selectedTip = 0;
+        const TAX_RATE = 0.10;
 
         // Show alert message
         function showAlert(message, type = 'success') {
@@ -871,36 +1040,149 @@
         function updateCart() {
             const cartCount = document.getElementById('cartCount');
             const cartItems = document.getElementById('cartItems');
-            const cartTotal = document.getElementById('cartTotal');
+            const cartBreakdown = document.getElementById('cartBreakdown');
+            const tipSection = document.getElementById('tipSection');
             
             cartCount.textContent = cart.reduce((sum, item) => sum + item.quantity, 0);
             
             if (cart.length === 0) {
-                cartItems.innerHTML = '<p>Your cart is empty</p>';
-                cartTotal.textContent = 'Total: $0.00';
+                cartItems.innerHTML = '<p style="text-align: center; color: #999; padding: 1rem;">Your cart is empty</p>';
+                cartBreakdown.style.display = 'none';
+                tipSection.style.display = 'none';
+                document.querySelector('.btn-success').disabled = true;
                 return;
             }
             
-            let html = '';
-            let total = 0;
+            // Re-enable checkout button if cart has items
+            document.querySelector('.btn-success').disabled = false;
             
-            cart.forEach(item => {
+            let html = '';
+            let subtotal = 0;
+            
+            cart.forEach((item, index) => {
                 const itemTotal = item.price * item.quantity;
-                total += itemTotal;
+                subtotal += itemTotal;
                 
                 html += `
                     <div class="cart-item">
                         <div class="cart-item-info">
                             <h4>${item.image} ${item.name}</h4>
-                            <p>Qty: ${item.quantity} × ${item.price.toFixed(2)}</p>
+                            <p>Price: $${item.price.toFixed(2)} each</p>
                         </div>
-                        <div class="cart-item-price">$${itemTotal.toFixed(2)}</div>
+                        <div class="cart-item-controls">
+                            <div class="qty-controls">
+                                <button class="qty-btn" onclick="decreaseQuantity('${item.id}')">−</button>
+                                <span class="qty-display">${item.quantity}</span>
+                                <button class="qty-btn" onclick="increaseQuantity('${item.id}')">+</button>
+                            </div>
+                            <button class="remove-btn" onclick="removeItem('${item.id}')">✕</button>
+                        </div>
                     </div>
                 `;
             });
             
             cartItems.innerHTML = html;
-            cartTotal.textContent = `Total: $${total.toFixed(2)}`;
+            
+            // Calculate breakdown
+            const tax = subtotal * TAX_RATE;
+            const total = subtotal + tax + selectedTip;
+            
+            // Update breakdown display
+            document.getElementById('subtotalAmount').textContent = `$${subtotal.toFixed(2)}`;
+            document.getElementById('taxAmount').textContent = `$${tax.toFixed(2)}`;
+            document.getElementById('tipAmount').textContent = `$${selectedTip.toFixed(2)}`;
+            document.getElementById('finalTotal').textContent = `$${total.toFixed(2)}`;
+            
+            cartBreakdown.style.display = 'block';
+            tipSection.style.display = 'block';
+        }
+        
+        // Select tip amount
+        function selectTip(amount) {
+            selectedTip = amount;
+            
+            // Update button states
+            document.querySelectorAll('.tip-btn').forEach((btn, index) => {
+                btn.classList.remove('active');
+                const tipValues = [0, 10, 15, 20];
+                if (tipValues[index] === amount) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Update breakdown
+            if (cart.length > 0) {
+                const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const tax = subtotal * TAX_RATE;
+                const total = subtotal + tax + selectedTip;
+                
+                document.getElementById('tipAmount').textContent = `$${selectedTip.toFixed(2)}`;
+                document.getElementById('finalTotal').textContent = `$${total.toFixed(2)}`;
+            }
+        }
+        
+        // Remove item completely from cart
+        function removeItem(itemId) {
+            // Find the index of the item
+            const index = cart.findIndex(item => item.id === itemId);
+            
+            // Edge case: Item not found
+            if (index === -1) {
+                console.warn(`Item ${itemId} not found in cart`);
+                return;
+            }
+            
+            // Remove the item from cart
+            cart.splice(index, 1);
+            
+            // Show feedback
+            const itemName = document.querySelector(`[onclick*="removeItem('${itemId}')"]`)?.closest('.cart-item')?.querySelector('h4')?.textContent || 'Item';
+            showAlert(`Removed from cart!`, 'success');
+            
+            // Update cart display
+            updateCart();
+        }
+        
+        // Decrease quantity by 1
+        function decreaseQuantity(itemId) {
+            // Find the item
+            const item = cart.find(cartItem => cartItem.id === itemId);
+            
+            // Edge case: Item not found
+            if (!item) {
+                console.warn(`Item ${itemId} not found in cart`);
+                return;
+            }
+            
+            // Decrease quantity
+            item.quantity -= 1;
+            
+            // Edge case: Quantity reaches 0, auto-remove
+            if (item.quantity <= 0) {
+                removeItem(itemId);
+                return;
+            }
+            
+            // Update cart display
+            updateCart();
+        }
+        
+        // Increase quantity by 1
+        function increaseQuantity(itemId) {
+            // Find the item
+            const item = cart.find(cartItem => cartItem.id === itemId);
+            
+            // Edge case: Item not found
+            if (!item) {
+                console.warn(`Item ${itemId} not found in cart`);
+                return;
+            }
+            
+            // Increase quantity
+            item.quantity += 1;
+            
+            // Update cart display
+            updateCart();
         }
 
         // Open cart
@@ -928,22 +1210,29 @@
                 return;
             }
             
-            const total = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+            const tax = subtotal * TAX_RATE;
+            const finalTotal = subtotal + tax + selectedTip;
+            
             const order = {
                 order_id: `ORD${Date.now()}`,
                 email: currentUser.email,
                 items: JSON.stringify(cart),
-                total: total.toFixed(2),
+                subtotal: subtotal.toFixed(2),
+                tax: tax.toFixed(2),
+                tip: selectedTip.toFixed(2),
+                total: finalTotal.toFixed(2),
                 status: 'pending',
                 created_at: new Date().toISOString()
             };
             
             ORDERS_DATA.push(order);
             cart = [];
+            selectedTip = 0;
             updateCart();
             closeCart();
             
-            showAlert(`Order placed successfully! Total: $${total.toFixed(2)}`, 'success');
+            showAlert(`Order placed successfully! Total: $${finalTotal.toFixed(2)} (including $${tax.toFixed(2)} tax + $${selectedTip.toFixed(2)} tip)`, 'success');
         }
 
         // Load and display orders
@@ -965,6 +1254,9 @@
             userOrders.reverse().forEach(order => {
                 const items = JSON.parse(order.items);
                 const orderDate = new Date(order.created_at).toLocaleString();
+                const subtotal = order.subtotal || order.total;
+                const tax = order.tax || 0;
+                const tip = order.tip || 0;
                 
                 html += `
                     <div class="order-item">
@@ -979,6 +1271,20 @@
                                     <span>$${(item.price * item.quantity).toFixed(2)}</span>
                                 </div>
                             `).join('')}
+                        </div>
+                        <div style="background: #f0f0f0; padding: 1rem; border-radius: 8px; margin-top: 1rem; font-size: 0.9rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Subtotal:</span>
+                                <span>$${subtotal}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Tax (10%):</span>
+                                <span>$${tax}</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                <span>Tip:</span>
+                                <span>$${tip}</span>
+                            </div>
                         </div>
                         <div class="order-total">Total: $${order.total}</div>
                     </div>
