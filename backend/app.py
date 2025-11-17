@@ -16,6 +16,10 @@ from collections import Counter
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config.update(
+    SESSION_COOKIE_SAMESITE='None',
+    SESSION_COOKIE_SECURE=True
+)
 
 # CORS configuration - allow localhost plus configured origins
 default_origins = [
