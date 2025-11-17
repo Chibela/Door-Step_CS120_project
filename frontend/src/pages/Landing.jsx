@@ -274,7 +274,7 @@ const Landing = () => {
         <section id="features" className="section-padding section-light">
           <div className="max-w-6xl mx-auto px-6 text-center mb-12">
             <p className="section-eyebrow">Everything You Need</p>
-            <h2 className="section-title">All-in-one platform for schedules and service</h2>
+            <h2 className="section-title">All-in-one platform for schedules and services</h2>
             <p className="section-subtitle">Powerful tooling for managers, staff, and customers alike.</p>
           </div>
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
