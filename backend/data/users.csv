@@ -2,3 +2,4 @@ email,password,first_name,last_name,mobile,address,dob,sex,registration_date,rol
 admin@foodtruck.com,pbkdf2:sha256:600000$1zdRe7Z7s3xKoA01$36a9394a20a7231fafbab56040f23ae264f699cfabced1a4d00870592f4e9fe5,Admin,User,555-0000,Admin St,1990-01-01,M,2025-11-16T23:29:11.751742,admin
 staff1@foodtruck.com,pbkdf2:sha256:600000$FeMY2bUWUhTFo78v$09845fe3afd99aea1ae9cbb9d7206892926c81b4ad1d9048fbc1fd73c4a81fd8,Staff,One,555-0001,Staff St,1992-01-01,F,2025-11-16T23:29:11.896280,staff
 customer@foodtruck.com,pbkdf2:sha256:600000$DviZOgflKNpdTmzO$5fa20869440c39ffe3861470add5f1b74776edaaa477699f1c5ac4839e8682c2,Customer,User,555-0002,Customer St,1995-01-01,M,2025-11-16T23:29:12.030830,customer
+cs120@foodtruck.com,pbkdf2:sha256:600000$6gmNpTcAmBKcZmcS$4e234544623a4d6d8fd1d2fdc94ed629e23eff082b48bed9b6e1b3cb1540c93f,CS120,A,,,2025-11-12,M,2025-11-17T02:04:16.112402,staff

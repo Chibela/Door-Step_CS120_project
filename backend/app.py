@@ -10,8 +10,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import csv
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
+from collections import Counter
 
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
@@ -27,24 +28,36 @@ CORS(app,
 # File paths
 DATA_DIR = "data"
 USERS_CSV = os.path.join(DATA_DIR, "users.csv")
+USER_HEADERS = ['email', 'password', 'first_name', 'last_name', 'mobile', 'address', 'dob', 'sex', 'registration_date', 'role']
 ORDERS_CSV = os.path.join(DATA_DIR, "orders.csv")
+ORDER_HEADERS = ['order_id', 'email', 'items', 'subtotal', 'tax', 'tip', 'total', 'status', 'created_at']
 SCHEDULES_CSV = os.path.join(DATA_DIR, "schedules.csv")
+SCHEDULE_HEADERS = ['appointment_id', 'manager_email', 'staff_email', 'staff_name', 'date', 'time_slot', 'status', 'notes', 'created_at']
 
-# Menu items
-MENU = [
-    {"id": "1", "name": "Classic Cheeseburger", "description": "Juicy beef patty with cheese, lettuce, tomato, and special sauce", "price": 8.99, "category": "burgers"},
-    {"id": "2", "name": "BBQ Pulled Pork Sandwich", "description": "Slow-cooked pork with tangy BBQ sauce and coleslaw", "price": 9.99, "category": "sandwiches"},
-    {"id": "3", "name": "Fish Tacos (3pc)", "description": "Fresh fish with cabbage slaw, lime crema, and cilantro", "price": 11.99, "category": "tacos"},
-    {"id": "4", "name": "Loaded Nachos", "description": "Crispy tortilla chips with cheese, jalapeños, sour cream, and guacamole", "price": 7.99, "category": "appetizers"},
-    {"id": "5", "name": "Chicken Wings (8pc)", "description": "Crispy wings with your choice of Buffalo, BBQ, or Honey Garlic", "price": 10.99, "category": "appetizers"},
-    {"id": "6", "name": "Veggie Wrap", "description": "Fresh vegetables, hummus, and avocado in a spinach tortilla", "price": 6.99, "category": "healthy"},
-    {"id": "7", "name": "Loaded Fries", "description": "Crispy fries topped with cheese, bacon, and green onions", "price": 5.99, "category": "sides"},
-    {"id": "8", "name": "Fresh Lemonade", "description": "House-made lemonade with real lemons", "price": 3.99, "category": "drinks"},
-    {"id": "9", "name": "Craft Root Beer", "description": "Premium root beer on tap", "price": 2.99, "category": "drinks"},
-]
+# Menu items - loaded from cached API data
+MENU_CACHE_FILE = os.path.join(DATA_DIR, "menu_cache.json")
 
-# Staff members
-STAFF = ['Staff1', 'Staff2', 'Staff3', 'Staff4']
+def load_menu_from_cache():
+    """Load menu items from cached API data"""
+    if os.path.exists(MENU_CACHE_FILE):
+        try:
+            with open(MENU_CACHE_FILE, 'r', encoding='utf-8') as f:
+                cache_data = json.load(f)
+                return cache_data.get('items', [])
+        except Exception as e:
+            print(f"Error loading menu cache: {e}")
+    
+    # Fallback to default menu if cache doesn't exist
+    return [
+        {"id": "1", "name": "Classic Cheeseburger", "description": "Juicy beef patty with cheese, lettuce, tomato, and special sauce", "price": 8.99, "category": "burgers", "image": ""},
+        {"id": "2", "name": "BBQ Pulled Pork Sandwich", "description": "Slow-cooked pork with tangy BBQ sauce and coleslaw", "price": 9.99, "category": "sandwiches", "image": ""},
+        {"id": "3", "name": "Fish Tacos (3pc)", "description": "Fresh fish with cabbage slaw, lime crema, and cilantro", "price": 11.99, "category": "tacos", "image": ""},
+        {"id": "4", "name": "Loaded Nachos", "description": "Crispy tortilla chips with cheese, jalapeños, sour cream, and guacamole", "price": 7.99, "category": "appetizers", "image": ""},
+        {"id": "5", "name": "Chicken Wings (8pc)", "description": "Crispy wings with your choice of Buffalo, BBQ, or Honey Garlic", "price": 10.99, "category": "appetizers", "image": ""},
+    ]
+
+MENU = load_menu_from_cache()
+
 TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM']
 
 
@@ -56,7 +69,7 @@ def ensure_csv_files():
     if not os.path.exists(USERS_CSV):
         with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['email', 'password', 'first_name', 'last_name', 'mobile', 'address', 'dob', 'sex', 'registration_date', 'role'])
+            writer.writerow(USER_HEADERS)
             # Demo accounts
             writer.writerow(['admin@foodtruck.com', generate_password_hash('admin123'), 'Admin', 'User', '555-0000', 'Admin St', '1990-01-01', 'M', datetime.now().isoformat(), 'admin'])
             writer.writerow(['staff1@foodtruck.com', generate_password_hash('staff123'), 'Staff', 'One', '555-0001', 'Staff St', '1992-01-01', 'F', datetime.now().isoformat(), 'staff'])
@@ -66,13 +79,38 @@ def ensure_csv_files():
     if not os.path.exists(ORDERS_CSV):
         with open(ORDERS_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['order_id', 'email', 'items', 'subtotal', 'tax', 'tip', 'total', 'status', 'created_at'])
+            writer.writerow(ORDER_HEADERS)
     
-    # Schedules CSV
+    # Schedules CSV (with upgrade if columns changed)
     if not os.path.exists(SCHEDULES_CSV):
         with open(SCHEDULES_CSV, 'w', newline='', encoding='utf-8') as f:
             writer = csv.writer(f)
-            writer.writerow(['appointment_id', 'manager_email', 'staff_name', 'date', 'time_slot', 'status', 'created_at'])
+            writer.writerow(SCHEDULE_HEADERS)
+    else:
+        with open(SCHEDULES_CSV, 'r', newline='', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            existing_headers = next(reader, [])
+        if 'staff_email' not in existing_headers or 'notes' not in existing_headers:
+            schedules = []
+            with open(SCHEDULES_CSV, 'r', newline='', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    schedules.append({
+                        'appointment_id': row.get('appointment_id', ''),
+                        'manager_email': row.get('manager_email', ''),
+                        'staff_email': row.get('staff_email', ''),
+                        'staff_name': row.get('staff_name', ''),
+                        'date': row.get('date', ''),
+                        'time_slot': row.get('time_slot', ''),
+                        'status': row.get('status', ''),
+                        'notes': row.get('notes', ''),
+                        'created_at': row.get('created_at', '')
+                    })
+            with open(SCHEDULES_CSV, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=SCHEDULE_HEADERS)
+                writer.writeheader()
+                for schedule in schedules:
+                    writer.writerow(schedule)
 
 
 def read_users():
@@ -104,8 +142,132 @@ def read_schedules():
         with open(SCHEDULES_CSV, 'r', newline='', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                schedules.append(dict(row))
+                schedule = {
+                    'appointment_id': row.get('appointment_id', ''),
+                    'manager_email': row.get('manager_email', ''),
+                    'staff_email': row.get('staff_email', ''),
+                    'staff_name': row.get('staff_name', ''),
+                    'date': row.get('date', ''),
+                    'time_slot': row.get('time_slot', ''),
+                    'status': row.get('status', ''),
+                    'notes': row.get('notes', ''),
+                    'created_at': row.get('created_at', '')
+                }
+                schedules.append(schedule)
     return schedules
+
+
+def write_schedules(schedules):
+    """Persist schedules to CSV"""
+    with open(SCHEDULES_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=SCHEDULE_HEADERS)
+        writer.writeheader()
+        for schedule in schedules:
+            writer.writerow(schedule)
+
+
+def write_orders(orders):
+    """Persist orders to CSV"""
+    with open(ORDERS_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.DictWriter(f, fieldnames=ORDER_HEADERS)
+        writer.writeheader()
+        for order in orders:
+            writer.writerow(order)
+
+
+def write_users(users):
+    """Persist users to CSV"""
+    with open(USERS_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(USER_HEADERS)
+        for user in users:
+            writer.writerow([
+                user.get('email', ''),
+                user.get('password', ''),
+                user.get('first_name', ''),
+                user.get('last_name', ''),
+                user.get('mobile', ''),
+                user.get('address', ''),
+                user.get('dob', ''),
+                user.get('sex', ''),
+                user.get('registration_date', ''),
+                user.get('role', '')
+            ])
+
+
+def sanitize_user(user):
+    """Return user dict without sensitive fields"""
+    return {
+        'email': user.get('email', ''),
+        'first_name': user.get('first_name', ''),
+        'last_name': user.get('last_name', ''),
+        'mobile': user.get('mobile', ''),
+        'address': user.get('address', ''),
+        'dob': user.get('dob', ''),
+        'sex': user.get('sex', ''),
+        'role': user.get('role', '')
+    }
+
+
+def get_user_by_email(email):
+    """Fetch single user by email"""
+    if not email:
+        return None
+    email = email.lower()
+    for user in read_users():
+        if user.get('email', '').lower() == email:
+            return user
+    return None
+
+
+def parse_datetime(value):
+    """Safely parse ISO datetime strings"""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            return datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+        except ValueError:
+            return None
+
+
+def update_user_record(email, updates):
+    """Update user fields in CSV"""
+    users = read_users()
+    updated = False
+    for user in users:
+        if user.get('email', '').lower() == email.lower():
+            for key, value in updates.items():
+                if value is None:
+                    continue
+                if key == 'password':
+                    user['password'] = generate_password_hash(value)
+                elif key in user:
+                    user[key] = value
+            updated = True
+            break
+    if updated:
+        write_users(users)
+    return updated
+
+
+def update_order_record(order_id, updates):
+    """Update order fields in CSV"""
+    orders = read_orders()
+    updated_order = None
+    for order in orders:
+        if order.get('order_id') == order_id:
+            for key, value in updates.items():
+                if value is None or key not in order:
+                    continue
+                order[key] = value
+            updated_order = order
+            break
+    if updated_order:
+        write_orders(orders)
+    return updated_order
 
 
 def save_user(email, password, first_name, last_name, mobile, address, dob, sex, role='customer'):
@@ -124,12 +286,12 @@ def save_order(email, items, subtotal, tax, tip, total):
     return order_id
 
 
-def save_appointment(manager_email, staff_name, date, time_slot):
+def save_appointment(manager_email, staff_email, staff_name, date, time_slot, status='scheduled', notes=''):
     """Save appointment to CSV"""
     appointment_id = f"APT{int(datetime.now().timestamp() * 1000)}"
     with open(SCHEDULES_CSV, 'a', newline='', encoding='utf-8') as f:
         writer = csv.writer(f)
-        writer.writerow([appointment_id, manager_email, staff_name, date, time_slot, 'confirmed', datetime.now().isoformat()])
+        writer.writerow([appointment_id, manager_email, staff_email, staff_name, date, time_slot, status, notes, datetime.now().isoformat()])
     return appointment_id
 
 
@@ -271,6 +433,9 @@ def get_current_user():
 @app.route('/api/menu', methods=['GET'])
 def get_menu():
     """Get menu items"""
+    # Reload menu from cache on each request (in case it was updated)
+    global MENU
+    MENU = load_menu_from_cache()
     return jsonify(MENU)
 
 
@@ -314,6 +479,24 @@ def create_order():
     })
 
 
+@app.route('/api/orders/<order_id>', methods=['PUT'])
+@login_required
+@role_required('admin')
+def update_order(order_id):
+    """Update order status/details (admin only)"""
+    data = request.json or {}
+    allowed_fields = {'status'}
+    updates = {k: v for k, v in data.items() if k in allowed_fields and v is not None}
+    if not updates:
+        return jsonify({'error': 'No valid fields to update'}), 400
+    
+    updated_order = update_order_record(order_id, updates)
+    if not updated_order:
+        return jsonify({'error': 'Order not found'}), 404
+    
+    return jsonify({'success': True, 'order': updated_order})
+
+
 # ==================== SCHEDULES ====================
 
 @app.route('/api/schedules', methods=['GET'])
@@ -341,27 +524,77 @@ def get_schedules():
 @role_required('admin')
 def create_appointment():
     """Create new appointment (admin only)"""
-    data = request.json
+    data = request.json or {}
     manager_email = session.get('user_id')
-    staff_name = data.get('staff_name', '')
-    date = data.get('date', '')
-    time_slot = data.get('time_slot', '')
+    staff_email = (data.get('staff_email') or '').strip().lower()
+    date = data.get('date', '').strip()
+    time_slot = data.get('time_slot', '').strip()
+    notes = data.get('notes', '').strip()
     
-    if not all([staff_name, date, time_slot]):
+    if not all([staff_email, date, time_slot]):
         return jsonify({'success': False, 'error': 'All fields are required'}), 400
     
-    # Check if slot is available
+    staff_user = get_user_by_email(staff_email)
+    if not staff_user or staff_user.get('role') != 'staff':
+        return jsonify({'success': False, 'error': 'Staff member not found'}), 404
+    
+    staff_name = f"{staff_user.get('first_name', '').strip()} {staff_user.get('last_name', '').strip()}".strip() or staff_user.get('email')
+    
     schedules = read_schedules()
     for s in schedules:
-        if s['staff_name'] == staff_name and s['date'] == date and s['time_slot'] == time_slot:
+        if s.get('staff_email', '').lower() == staff_email and s.get('date') == date and s.get('time_slot') == time_slot:
             return jsonify({'success': False, 'error': 'Time slot already booked'}), 400
     
-    appointment_id = save_appointment(manager_email, staff_name, date, time_slot)
+    appointment_id = save_appointment(manager_email, staff_email, staff_name, date, time_slot, status='scheduled', notes=notes)
     
     return jsonify({
         'success': True,
         'appointment_id': appointment_id
     })
+
+
+@app.route('/api/schedules/<appointment_id>', methods=['PUT'])
+@login_required
+def update_schedule(appointment_id):
+    """Update appointment details or status"""
+    data = request.json or {}
+    role = session.get('role')
+    user_email = session.get('user_id', '').lower()
+    
+    schedules = read_schedules()
+    updated_schedule = None
+    
+    for schedule in schedules:
+        if schedule.get('appointment_id') == appointment_id:
+            if role == 'staff' and schedule.get('staff_email', '').lower() != user_email:
+                return jsonify({'error': 'Forbidden'}), 403
+            
+            if role == 'admin':
+                new_staff_email = data.get('staff_email')
+                if new_staff_email:
+                    staff_user = get_user_by_email(new_staff_email)
+                    if not staff_user or staff_user.get('role') != 'staff':
+                        return jsonify({'error': 'Staff member not found'}), 404
+                    schedule['staff_email'] = staff_user.get('email').lower()
+                    schedule['staff_name'] = f"{staff_user.get('first_name', '').strip()} {staff_user.get('last_name', '').strip()}".strip() or staff_user.get('email')
+                if data.get('date'):
+                    schedule['date'] = data['date']
+                if data.get('time_slot'):
+                    schedule['time_slot'] = data['time_slot']
+            
+            if data.get('status'):
+                schedule['status'] = data['status']
+            if data.get('notes') is not None:
+                schedule['notes'] = data.get('notes', '')
+            
+            updated_schedule = schedule
+            break
+    
+    if not updated_schedule:
+        return jsonify({'error': 'Appointment not found'}), 404
+    
+    write_schedules(schedules)
+    return jsonify({'success': True, 'schedule': updated_schedule})
 
 
 # ==================== ADMIN DASHBOARD ====================
@@ -374,13 +607,52 @@ def admin_dashboard():
     orders = read_orders()
     schedules = read_schedules()
     
-    # Calculate stats
     total_orders = len(orders)
-    total_revenue = sum(float(o.get('total', 0)) for o in orders)
+    total_revenue = sum(float(o.get('total', 0) or 0) for o in orders)
     pending_orders = len([o for o in orders if o.get('status') == 'pending'])
     total_appointments = len(schedules)
     
-    # Recent orders
+    # Revenue trend (last 7 days)
+    today = datetime.now().date()
+    start_date = today - timedelta(days=6)
+    revenue_trend = []
+    for i in range(7):
+        current_day = start_date + timedelta(days=i)
+        day_label = current_day.strftime('%b %d')
+        day_orders = 0
+        day_revenue = 0.0
+        for order in orders:
+            created_at = parse_datetime(order.get('created_at'))
+            if created_at and created_at.date() == current_day:
+                day_orders += 1
+                day_revenue += float(order.get('total', 0) or 0)
+        revenue_trend.append({
+            'date': day_label,
+            'orders': day_orders,
+            'revenue': round(day_revenue, 2)
+        })
+    
+    # Top dishes
+    dish_counter = Counter()
+    for order in orders:
+        items_raw = order.get('items')
+        if not items_raw:
+            continue
+        try:
+            items = json.loads(items_raw)
+        except (TypeError, json.JSONDecodeError):
+            continue
+        for item in items:
+            name = item.get('name')
+            if not name:
+                continue
+            qty = int(item.get('quantity', 1))
+            dish_counter[name] += qty
+    top_dishes = [
+        {'name': name, 'orders': count}
+        for name, count in dish_counter.most_common(5)
+    ]
+    
     recent_orders = sorted(orders, key=lambda x: x.get('created_at', ''), reverse=True)[:5]
     
     return jsonify({
@@ -388,18 +660,104 @@ def admin_dashboard():
             'total_orders': total_orders,
             'total_revenue': round(total_revenue, 2),
             'pending_orders': pending_orders,
-            'total_appointments': total_appointments
+            'total_appointments': total_appointments,
+            'revenue_trend': revenue_trend
         },
-        'recent_orders': recent_orders
+        'recent_orders': recent_orders,
+        'top_dishes': top_dishes
     })
 
 
 # ==================== STAFF ====================
 
 @app.route('/api/staff', methods=['GET'])
-def get_staff():
-    """Get staff list"""
-    return jsonify(STAFF)
+@login_required
+@role_required('admin')
+def list_staff():
+    """Admin: list staff members"""
+    staff_users = [sanitize_user(u) for u in read_users() if u.get('role') == 'staff']
+    return jsonify(staff_users)
+
+
+@app.route('/api/staff', methods=['POST'])
+@login_required
+@role_required('admin')
+def create_staff_user():
+    """Admin: create staff account"""
+    data = request.json or {}
+    required_fields = ['email', 'password', 'first_name', 'last_name']
+    if not all(data.get(field) for field in required_fields):
+        return jsonify({'error': 'Email, password, first name, and last name are required'}), 400
+    
+    email = data['email'].lower()
+    if get_user_by_email(email):
+        return jsonify({'error': 'User already exists'}), 400
+    
+    save_user(
+        email,
+        data['password'],
+        data.get('first_name', ''),
+        data.get('last_name', ''),
+        data.get('mobile', ''),
+        data.get('address', ''),
+        data.get('dob', ''),
+        data.get('sex', ''),
+        role='staff'
+    )
+    
+    user = get_user_by_email(email)
+    return jsonify({'success': True, 'user': sanitize_user(user)}), 201
+
+
+@app.route('/api/staff/<path:email>', methods=['PUT'])
+@login_required
+@role_required('admin')
+def update_staff_user(email):
+    """Admin: update staff details"""
+    data = request.json or {}
+    updates = {
+        'first_name': data.get('first_name'),
+        'last_name': data.get('last_name'),
+        'mobile': data.get('mobile'),
+        'address': data.get('address'),
+        'dob': data.get('dob'),
+        'sex': data.get('sex'),
+        'password': data.get('password')
+    }
+    success = update_user_record(email, updates)
+    if not success:
+        return jsonify({'error': 'Staff member not found'}), 404
+    user = get_user_by_email(email)
+    return jsonify({'success': True, 'user': sanitize_user(user)})
+
+
+@app.route('/api/staff/profile', methods=['GET', 'PUT'])
+@login_required
+@role_required('staff')
+def staff_profile():
+    """Staff: view or update own profile"""
+    email = session.get('user_id')
+    if request.method == 'GET':
+        user = get_user_by_email(email)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+        return jsonify(sanitize_user(user))
+    
+    data = request.json or {}
+    updates = {
+        'first_name': data.get('first_name'),
+        'last_name': data.get('last_name'),
+        'mobile': data.get('mobile'),
+        'address': data.get('address'),
+        'dob': data.get('dob'),
+        'sex': data.get('sex'),
+        'password': data.get('password')
+    }
+    success = update_user_record(email, updates)
+    if not success:
+        return jsonify({'error': 'User not found'}), 404
+    user = get_user_by_email(email)
+    return jsonify({'success': True, 'user': sanitize_user(user)})
 
 
 @app.route('/api/time-slots', methods=['GET'])

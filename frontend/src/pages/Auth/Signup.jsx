@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Phone, MapPin, Calendar, UserCircle } from 'lucide-react';
+import logo from '../../assets/logo.webp';
 import { AuthContext } from '../../context/AuthContext';
 import { signup } from '../../services/api';
 import { useToast } from '../../components/Toast';
@@ -51,9 +52,7 @@ const Signup = () => {
     <div className="min-h-screen bg-app-gradient flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl border border-gray-100">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary-dark rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
-            <span className="text-white font-bold text-2xl">SD</span>
-          </div>
+          <img src={logo} alt="ServeDash" className="w-32 mx-auto mb-4 object-contain" />
           <h1 className="text-3xl font-bold text-primary-dark mb-2">Create Account</h1>
           <p className="text-text-light">Sign up for ServeDash</p>
         </div>

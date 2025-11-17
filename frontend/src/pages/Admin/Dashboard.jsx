@@ -3,12 +3,25 @@ import { DollarSign, ShoppingBag, TrendingUp, Calendar } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Header from '../../components/Admin/Header';
 import Sidebar from '../../components/Admin/Sidebar';
-import { getAdminDashboard, getOrders } from '../../services/api';
+import { getAdminDashboard } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 const Dashboard = () => {
+  const getStatusClass = (status) => {
+    switch (status) {
+      case 'completed':
+        return 'text-success';
+      case 'ready':
+        return 'text-primary';
+      case 'cancelled':
+        return 'text-red-500';
+      default:
+        return 'text-accent';
+    }
+  };
   const [stats, setStats] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
+  const [topDishes, setTopDishes] = useState([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -21,6 +34,7 @@ const Dashboard = () => {
       const dashboardData = await getAdminDashboard();
       setStats(dashboardData.stats);
       setRecentOrders(dashboardData.recent_orders || []);
+      setTopDishes(dashboardData.top_dishes || []);
     } catch (error) {
       console.error('Error loading dashboard:', error);
       showToast('Failed to load dashboard data', 'error');
@@ -39,22 +53,16 @@ const Dashboard = () => {
     );
   }
 
-  // Mock chart data (replace with real data)
-  const revenueData = [
-    { date: '10 Mar', revenue: 1200 },
-    { date: '11 Mar', revenue: 1500 },
-    { date: '12 Mar', revenue: 1500 },
-    { date: '13 Mar', revenue: 700 },
-    { date: '14 Mar', revenue: 1200 },
-    { date: '15 Mar', revenue: 1500 },
-    { date: '16 Mar', revenue: 1400 },
-  ];
+  const revenueData = stats?.revenue_trend || [];
+  const firstRevenue = revenueData[0]?.revenue || 0;
+  const lastRevenue = revenueData[revenueData.length - 1]?.revenue || 0;
+  const revenueChange = firstRevenue > 0 ? (((lastRevenue - firstRevenue) / firstRevenue) * 100).toFixed(1) : '0.0';
 
   const kpiCards = [
     {
       title: 'Daily Revenue',
       value: `$${stats?.total_revenue?.toFixed(2) || '0.00'}`,
-      change: '+2.5%',
+      change: `${revenueChange}%`,
       trend: 'up',
       icon: DollarSign,
       color: 'text-green-600',
@@ -62,7 +70,7 @@ const Dashboard = () => {
     {
       title: 'Total Orders',
       value: stats?.total_orders || 0,
-      change: '+2.9%',
+      change: '+0.0%',
       trend: 'up',
       icon: ShoppingBag,
       color: 'text-green-600',
@@ -70,7 +78,7 @@ const Dashboard = () => {
     {
       title: 'Average Order Value',
       value: `$${stats?.total_orders > 0 ? (stats.total_revenue / stats.total_orders).toFixed(2) : '0.00'}`,
-      change: '+3.6%',
+      change: '+0.0%',
       trend: 'up',
       icon: TrendingUp,
       color: 'text-green-600',
@@ -78,7 +86,7 @@ const Dashboard = () => {
     {
       title: 'Pending Orders',
       value: stats?.pending_orders || 0,
-      change: '-0.6%',
+      change: '-0.0%',
       trend: 'down',
       icon: Calendar,
       color: 'text-red-600',
@@ -117,8 +125,8 @@ const Dashboard = () => {
             {/* Revenue Chart */}
             <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-text-dark">Total Revenue</h3>
-                <span className="text-sm font-semibold text-success">↑ 2.5% Last week</span>
+                <h3 className="text-xl font-bold text-text-dark">Revenue (Last 7 Days)</h3>
+                <span className="text-sm font-semibold text-success">{revenueChange}% vs first day</span>
               </div>
               <ResponsiveContainer width="100%" height={300}>
                 <LineChart data={revenueData}>
@@ -127,6 +135,7 @@ const Dashboard = () => {
                   <YAxis stroke="#666666" />
                   <Tooltip />
                   <Line type="monotone" dataKey="revenue" stroke="#E59500" strokeWidth={3} />
+                  <Line type="monotone" dataKey="orders" stroke="#4a90e2" strokeWidth={2} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -135,25 +144,27 @@ const Dashboard = () => {
             <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-text-dark">Top Selling Dishes</h3>
-                <span className="text-sm font-semibold text-success">↑ 5.3% More order</span>
+                <span className="text-sm text-text-light">Based on lifetime orders</span>
               </div>
               <div className="space-y-4">
-                {[
-                  { name: 'Cheese & Corn Momos', price: '$125', change: '+32%' },
-                  { name: 'French Fry', price: '$125', change: '+32%' },
-                  { name: 'Cheese Burger', price: '$125', change: '+32%' },
-                ].map((dish, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-dust-grey/50 rounded-xl hover:bg-dust-grey transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-primary/20 rounded-lg"></div>
-                      <div>
-                        <p className="font-semibold text-text-dark">{dish.name}</p>
-                        <p className="text-sm text-text-light">{dish.price}</p>
+                {topDishes.length > 0 ? (
+                  topDishes.map((dish, index) => (
+                    <div key={dish.name} className="flex items-center justify-between p-3 bg-dust-grey/50 rounded-xl hover:bg-dust-grey transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-primary/20 rounded-lg flex items-center justify-center font-semibold text-primary">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-text-dark">{dish.name}</p>
+                          <p className="text-sm text-text-light">{dish.orders} orders</p>
+                        </div>
                       </div>
+                      <span className="text-sm font-semibold text-success">★</span>
                     </div>
-                    <span className="text-sm font-semibold text-success">↑ {dish.change}</span>
-                  </div>
-                ))}
+                  ))
+                ) : (
+                  <p className="text-text-light text-center py-8">No order data yet</p>
+                )}
               </div>
             </div>
           </div>
@@ -174,9 +185,7 @@ const Dashboard = () => {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-text-dark">${order.total}</p>
-                      <span className={`text-sm font-semibold ${
-                        order.status === 'pending' ? 'text-accent' : 'text-primary'
-                      }`}>
+                      <span className={`text-sm font-semibold ${getStatusClass(order.status)}`}>
                         {order.status}
                       </span>
                     </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, User, Check } from 'lucide-react';
 import Header from '../../components/Admin/Header';
 import Sidebar from '../../components/Admin/Sidebar';
-import { getStaff, getTimeSlots, createAppointment } from '../../services/api';
+import { getStaffList, getTimeSlots, createAppointment } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 const BookAppointment = () => {
@@ -11,6 +11,7 @@ const BookAppointment = () => {
   const [selectedStaff, setSelectedStaff] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
@@ -21,7 +22,7 @@ const BookAppointment = () => {
   const loadData = async () => {
     try {
       const [staffData, timeSlotsData] = await Promise.all([
-        getStaff(),
+        getStaffList(),
         getTimeSlots(),
       ]);
       setStaff(staffData);
@@ -41,14 +42,16 @@ const BookAppointment = () => {
     setLoading(true);
     try {
       await createAppointment({
-        staff_name: selectedStaff,
+        staff_email: selectedStaff,
         date: selectedDate,
         time_slot: selectedTime,
+        notes,
       });
       showToast('Appointment booked successfully!', 'success');
       setSelectedStaff('');
       setSelectedDate('');
       setSelectedTime('');
+      setNotes('');
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to book appointment', 'error');
     } finally {
@@ -65,26 +68,26 @@ const BookAppointment = () => {
       <div className="flex gap-6">
         <Sidebar />
         <div className="flex-1">
-          <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Book Appointment</h2>
+          <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+            <h2 className="text-2xl font-bold text-text-dark mb-6">Book Appointment</h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-text-dark mb-2">
                   Select Staff
                 </label>
                 <div className="relative">
-                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
                   <select
                     value={selectedStaff}
                     onChange={(e) => setSelectedStaff(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark bg-white"
                     required
                   >
                     <option value="">Choose staff member</option>
                     {staff.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
+                      <option key={s.email} value={s.email}>
+                        {`${s.first_name} ${s.last_name}`.trim() || s.email}
                       </option>
                     ))}
                   </select>
@@ -92,32 +95,32 @@ const BookAppointment = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-text-dark mb-2">
                   Select Date
                 </label>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
                   <input
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     min={today}
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark"
                     required
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-text-dark mb-2">
                   Select Time Slot
                 </label>
                 <div className="relative">
-                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
                   <select
                     value={selectedTime}
                     onChange={(e) => setSelectedTime(e.target.value)}
-                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500"
+                    className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark bg-white"
                     required
                   >
                     <option value="">Choose time slot</option>
@@ -130,10 +133,22 @@ const BookAppointment = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full min-h-[120px] border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark p-3"
+                  placeholder="Add context or goals for this appointment"
+                />
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                className="w-full bg-primary-gradient text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02] disabled:transform-none"
               >
                 {loading ? 'Booking...' : 'Book Appointment'}
               </button>

@@ -3,17 +3,21 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import ProtectedRoute from './components/ProtectedRoute';
+import Landing from './pages/Landing';
 import Login from './pages/Auth/Login';
 import Signup from './pages/Auth/Signup';
 import AdminDashboard from './pages/Admin/Dashboard';
 import AdminOrders from './pages/Admin/Orders';
 import AdminBookAppointment from './pages/Admin/BookAppointment';
 import AdminSchedules from './pages/Admin/Schedules';
+import AdminMenu from './pages/Admin/Menu';
+import AdminStaff from './pages/Admin/Staff';
 import CustomerMenu from './pages/Customer/Menu';
 import CustomerCart from './pages/Customer/Cart';
 import CustomerOrders from './pages/Customer/Orders';
 import CustomerOrderDetails from './pages/Customer/OrderDetails';
 import CustomerProfile from './pages/Customer/Profile';
+import StaffDashboard from './pages/Staff/Dashboard';
 import StaffSchedule from './pages/Staff/Schedule';
 import StaffProfile from './pages/Staff/Profile';
 
@@ -33,6 +37,8 @@ function App() {
                   <Routes>
                     <Route path="dashboard" element={<AdminDashboard />} />
                     <Route path="orders" element={<AdminOrders />} />
+                    <Route path="menu" element={<AdminMenu />} />
+                    <Route path="staff" element={<AdminStaff />} />
                     <Route path="book-appointment" element={<AdminBookAppointment />} />
                     <Route path="schedules" element={<AdminSchedules />} />
                     <Route path="*" element={<Navigate to="/admin/dashboard" />} />
@@ -62,15 +68,16 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['staff']}>
                   <Routes>
+                    <Route path="dashboard" element={<StaffDashboard />} />
                     <Route path="schedule" element={<StaffSchedule />} />
                     <Route path="profile" element={<StaffProfile />} />
-                    <Route path="*" element={<Navigate to="/staff/schedule" />} />
+                    <Route path="*" element={<Navigate to="/staff/dashboard" />} />
                   </Routes>
                 </ProtectedRoute>
               }
             />
             
-            <Route path="/" element={<Navigate to="/login" />} />
+            <Route path="/" element={<Landing />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>

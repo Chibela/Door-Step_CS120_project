@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Search, ShoppingCart, LogOut } from 'lucide-react';
+import logo from '../../assets/logo.webp';
 import { AuthContext } from '../../context/AuthContext';
 import { logout } from '../../services/api';
 import { useToast } from '../Toast';
@@ -27,7 +28,7 @@ const CustomerHeader = () => {
     <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-primary-dark">ServeDash</h1>
+          <img src={logo} alt="ServeDash logo" className="h-12 w-auto object-contain" />
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -51,11 +52,15 @@ const CustomerHeader = () => {
           </Link>
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-primary-dark rounded-lg flex items-center justify-center shadow-md">
-              <span className="text-white font-semibold">{user?.first_name?.[0]}</span>
+              <span className="text-white font-semibold">
+                {user ? (user.first_name?.[0] || user.email?.[0]) : 'C'}
+              </span>
             </div>
             <div>
-              <p className="text-sm font-semibold text-text-dark">{user?.first_name}</p>
-              <p className="text-xs text-text-light capitalize">{user?.role}</p>
+              <p className="text-sm font-semibold text-text-dark">
+                {user ? `${user.first_name} ${user.last_name}`.trim() : 'Customer Name'}
+              </p>
+              <p className="text-xs text-text-light">Customer</p>
             </div>
           </div>
           <button

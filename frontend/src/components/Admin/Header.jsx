@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Bell, User, LogOut } from 'lucide-react';
+import logo from '../../assets/logo.webp';
 import { AuthContext } from '../../context/AuthContext';
 import { logout } from '../../services/api';
 import { useToast } from '../Toast';
@@ -25,7 +26,7 @@ const Header = () => {
     <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-primary-dark">ServeDash</h1>
+          <img src={logo} alt="ServeDash logo" className="h-12 w-auto object-contain" />
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">
@@ -40,12 +41,12 @@ const Header = () => {
             <Bell className="w-5 h-5 text-text-dark" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-primary-dark rounded-lg flex items-center justify-center shadow-md">
-              <User className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-lg border border-dust-grey flex items-center justify-center">
+              <User className="w-5 h-5 text-text-dark" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-text-dark">{user?.first_name}</p>
-              <p className="text-xs text-text-light capitalize">{user?.role}</p>
+              <p className="text-sm font-semibold text-text-dark">Manager</p>
+              <p className="text-xs text-text-light">Admin</p>
             </div>
           </div>
           <button

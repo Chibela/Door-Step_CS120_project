@@ -48,6 +48,11 @@ export const createOrder = async (orderData) => {
   return response.data;
 };
 
+export const updateOrder = async (orderId, updates) => {
+  const response = await api.put(`/orders/${orderId}`, updates);
+  return response.data;
+};
+
 // Schedules
 export const getSchedules = async () => {
   const response = await api.get('/schedules');
@@ -59,15 +64,41 @@ export const createAppointment = async (appointmentData) => {
   return response.data;
 };
 
+export const updateAppointment = async (appointmentId, updates) => {
+  const response = await api.put(`/schedules/${appointmentId}`, updates);
+  return response.data;
+};
+
 // Admin
 export const getAdminDashboard = async () => {
   const response = await api.get('/admin/dashboard');
   return response.data;
 };
 
-// Staff
-export const getStaff = async () => {
+// Staff Management (admin)
+export const getStaffList = async () => {
   const response = await api.get('/staff');
+  return response.data;
+};
+
+export const createStaff = async (staffData) => {
+  const response = await api.post('/staff', staffData);
+  return response.data;
+};
+
+export const updateStaff = async (email, staffData) => {
+  const response = await api.put(`/staff/${encodeURIComponent(email)}`, staffData);
+  return response.data;
+};
+
+// Staff self-service
+export const getStaffProfile = async () => {
+  const response = await api.get('/staff/profile');
+  return response.data;
+};
+
+export const updateStaffProfile = async (profileData) => {
+  const response = await api.put('/staff/profile', profileData);
   return response.data;
 };
 
