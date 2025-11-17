@@ -1,7 +1,7 @@
 #!/bin/bash
 # Quick start script for frontend
 
-echo "🚀 Starting Door Step Food Truck Frontend..."
+echo "🚀 Starting ServeDash Frontend..."
 echo ""
 
 # Check if node_modules exists

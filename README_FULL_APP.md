@@ -1,6 +1,6 @@
-# Door Step Food Truck - Full Stack Application
+# ServeDash - Full Stack Application
 
-A complete food truck management system with React frontend and Flask backend, featuring role-based access for Admin, Customer, and Staff.
+A complete food ordering and management system with React frontend and Flask backend, featuring role-based access for Admin, Customer, and Staff.
 
 ## 🎨 Design Features
 
@@ -281,7 +281,7 @@ This project is for educational purposes (CS120).
 
 ## 👨‍💻 Author
 
-Door Step Food Truck Management System
+ServeDash Management System
 
 ---
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Door Step Food Truck Management System - Backend API
+ServeDash Management System - Backend API
 Flask REST API with CSV database
 """
 

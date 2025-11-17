@@ -1,7 +1,7 @@
 #!/bin/bash
 # Quick start script for backend
 
-echo "🚀 Starting Door Step Food Truck Backend..."
+echo "🚀 Starting ServeDash Backend..."
 echo ""
 
 # Check if virtual environment exists

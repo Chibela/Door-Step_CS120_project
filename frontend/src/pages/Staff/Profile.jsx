@@ -44,7 +44,7 @@ const StaffProfile = () => {
       <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Door Step Food Truck</h1>
+            <h1 className="text-2xl font-bold text-primary-dark">ServeDash</h1>
             <p className="text-gray-500">Staff Profile</p>
           </div>
           <div className="flex items-center gap-4">

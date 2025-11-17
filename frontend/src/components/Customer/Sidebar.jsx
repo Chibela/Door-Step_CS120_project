@@ -16,9 +16,9 @@ const CustomerSidebar = () => {
     <div className="w-64 bg-white rounded-2xl shadow-xl p-6 h-[calc(100vh-120px)] border border-gray-100">
       <div className="flex items-center gap-3 mb-8">
         <div className="w-10 h-10 bg-primary-dark rounded-xl flex items-center justify-center shadow-md">
-          <span className="text-white font-bold text-xl">FT</span>
+          <span className="text-white font-bold text-xl">SD</span>
         </div>
-        <h2 className="text-xl font-bold text-text-dark">Foodstare</h2>
+        <h2 className="text-xl font-bold text-text-dark">ServeDash</h2>
       </div>
 
       <nav className="space-y-2">

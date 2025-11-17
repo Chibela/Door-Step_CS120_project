@@ -25,7 +25,7 @@ const Header = () => {
     <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <h1 className="text-2xl font-bold text-primary-dark">Door Step Food Truck</h1>
+          <h1 className="text-2xl font-bold text-primary-dark">ServeDash</h1>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative">

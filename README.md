@@ -1,6 +1,6 @@
-# 🚚 Door Step Food Truck - Modern Ordering System
+# 🚀 ServeDash - Modern Ordering System
 
-A beautiful, modern food truck ordering system built with Python and CSV database. Features a stunning UI with shopping cart, category filtering, and order management.
+A beautiful, modern food ordering system built with React and Flask. Features a stunning UI with shopping cart, category filtering, and order management.
 
 ## 🎨 Modern Food Truck UI
 
