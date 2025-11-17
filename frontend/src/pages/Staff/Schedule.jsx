@@ -175,20 +175,6 @@ const StaffSchedule = () => {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        <div className="bg-white rounded-2xl shadow-xl px-5 py-4 border border-gray-100 flex items-center gap-3">
-          <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner">
-            <User className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <p className="text-base font-semibold text-text-dark">
-              {user ? `${user.first_name} ${user.last_name}`.trim() : 'Staff'}
-            </p>
-            <p className="text-sm text-text-light capitalize">{user?.role || 'staff'}</p>
-          </div>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {statsCards.map((card) => {
           const Icon = card.icon;
