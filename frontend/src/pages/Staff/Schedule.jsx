@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { Calendar, Clock, User, LogOut, CheckCircle, XCircle, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, XCircle, ClipboardCheck, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
-import { getSchedules, logout, updateAppointment } from '../../services/api';
+import { getSchedules, updateAppointment } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import StaffHeader from '../../components/Staff/Header';
 
 const StaffSchedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState('');
-  const { user, logout: setLogout } = useContext(AuthContext);
+  const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -26,17 +27,6 @@ const StaffSchedule = () => {
       showToast('Failed to load schedule', 'error');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      setLogout();
-      showToast('Logged out successfully', 'success');
-      navigate('/login');
-    } catch (error) {
-      showToast('Failed to logout', 'error');
     }
   };
 
@@ -139,41 +129,7 @@ const StaffSchedule = () => {
 
   return (
     <div className="min-h-screen bg-app-gradient p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner">
-              <Calendar className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-primary-dark">ServeDash</h1>
-              <p className="text-text-light">Staff Schedule</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/staff/profile')}
-              className="flex items-center gap-2 hover:bg-dust-grey px-3 py-2 rounded-lg transition-all"
-            >
-              <div className="w-10 h-10 bg-primary-dark rounded-lg flex items-center justify-center shadow-md">
-                <span className="text-white font-semibold">{user?.first_name?.[0]}</span>
-              </div>
-              <div>
-                <p className="font-semibold text-text-dark">
-                  {user ? `${user.first_name} ${user.last_name}`.trim() : 'Staff Name'}
-                </p>
-                <p className="text-xs text-text-light">Staff</p>
-              </div>
-            </button>
-            <button
-              onClick={handleLogout}
-              className="p-2 hover:bg-accent hover:text-white rounded-lg transition-all"
-            >
-              <LogOut className="w-5 h-5 text-text-dark" />
-            </button>
-          </div>
-        </div>
-      </div>
+      <StaffHeader subtitle="Staff Schedule" />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         {statsCards.map((card) => {
