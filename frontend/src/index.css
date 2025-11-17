@@ -1,0 +1,71 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Unified background gradient - DoorDash-inspired clean design */
+.bg-app-gradient {
+  background: linear-gradient(135deg, #E5DADA 0%, #f5f5f5 50%, #ffffff 100%);
+}
+
+/* Subtle gradient for cards */
+.bg-card-gradient {
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+}
+
+/* Primary button gradient */
+.bg-primary-gradient {
+  background: linear-gradient(135deg, #E59500 0%, #ffa500 100%);
+}
+
+.bg-primary-gradient:hover {
+  background: linear-gradient(135deg, #ffa500 0%, #ffb733 100%);
+}
+
+/* Custom scrollbar - matching theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #E5DADA;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #002642;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E59500;
+}
+
+/* Toast animations */
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
