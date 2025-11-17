@@ -231,7 +231,7 @@ const Landing = () => {
         {/* Hero */}
         <section id="hero" className="landing-hero-gradient">
           <div className="max-w-6xl mx-auto px-6 py-20 flex flex-col lg:flex-row items-center gap-14">
-            <div className="flex-1 space-y-6">
+            <div className="flex-1 space-y-6 fade-up">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-navy leading-tight">
                 Manage Teams. Serve Customers. All in One Place.
               </h1>
@@ -239,7 +239,7 @@ const Landing = () => {
                 ServeDash combines powerful staff scheduling with seamless food ordering—helping you run your business smoother
                 and serve your customers faster.
               </p>
-              <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex flex-col sm:flex-row gap-4 fade-up delay-1">
                 <Link to="/signup" className="cta-primary">
                   Start Free Trial
                 </Link>
@@ -248,14 +248,14 @@ const Landing = () => {
                   Watch Demo
                 </button>
               </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
+              <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 fade-up delay-2">
                 <span>✓ No credit card required</span>
                 <span>✓ 14-day free trial</span>
                 <span>✓ Cancel anytime</span>
               </div>
             </div>
-            <div className="flex-1 relative">
-              <div className="landing-hero-card">
+            <div className="flex-1 relative fade-up delay-3">
+              <div className="landing-hero-card float-bob">
                 <img src={heroFood} alt="ServeDash hero" className="w-full h-full object-cover rounded-3xl shadow-2xl" />
                 <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-lg px-6 py-4 flex items-center gap-4 border border-gray-100">
                   <div className="w-12 h-12 rounded-xl bg-orange-100 flex items-center justify-center text-orange-500 font-bold">24/7</div>
@@ -278,8 +278,8 @@ const Landing = () => {
             <p className="section-subtitle">Powerful tooling for managers, staff, and customers alike.</p>
           </div>
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {features.map((feature) => (
-              <div key={feature.title} className="feature-card">
+            {features.map((feature, index) => (
+              <div key={feature.title} className={`feature-card fade-up delay-${index % 4}`}>
                 <div className="icon-circle">
                   <feature.icon className="w-6 h-6 text-orange-600" />
                 </div>
@@ -298,8 +298,8 @@ const Landing = () => {
           </div>
           <div className="max-w-5xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 relative">
             <div className="hidden md:block absolute inset-x-16 top-16 h-1 bg-gradient-to-r from-orange-200 to-orange-500" />
-            {steps.map((step) => (
-              <div key={step.number} className="timeline-card">
+            {steps.map((step, index) => (
+              <div key={step.number} className={`timeline-card fade-up delay-${index}`}>
                 <div className="step-badge">{step.number}</div>
                 <step.icon className="w-8 h-8 text-orange-500 mb-4" />
                 <h3>{step.title}</h3>
@@ -316,7 +316,7 @@ const Landing = () => {
             <h2 className="section-title">Two powerful systems. One seamless experience.</h2>
           </div>
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="purpose-card bg-gradient-to-br from-blue-50 to-blue-100">
+            <div className="purpose-card bg-gradient-to-br from-blue-50 to-blue-100 fade-up">
               <div className="icon-circle bg-white text-blue-500">
                 <CalendarCheck className="w-6 h-6" />
               </div>
@@ -331,7 +331,7 @@ const Landing = () => {
               </ul>
               <button className="purpose-cta">Explore Staff Features →</button>
             </div>
-            <div className="purpose-card bg-gradient-to-br from-orange-50 to-amber-100">
+            <div className="purpose-card bg-gradient-to-br from-orange-50 to-amber-100 fade-up delay-1">
               <div className="icon-circle bg-white text-orange-500">
                 <Utensils className="w-6 h-6" />
               </div>
@@ -356,8 +356,8 @@ const Landing = () => {
             <h2 className="section-title">Global flavors at your fingertips</h2>
           </div>
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {menuCategories.map((category) => (
-              <div key={category.name} className="menu-card">
+            {menuCategories.map((category, index) => (
+              <div key={category.name} className={`menu-card fade-up delay-${index % 3}`}>
                 <div className={`menu-card-accent bg-gradient-to-r ${category.accent}`} />
                 <h3>{category.name}</h3>
                 <ul>
@@ -378,8 +378,8 @@ const Landing = () => {
             <h2 className="section-title">Connected experiences for teams, managers, and guests</h2>
           </div>
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {roles.map((role) => (
-              <div key={role.title} className="role-card">
+            {roles.map((role, index) => (
+              <div key={role.title} className={`role-card fade-up delay-${index}`}>
                 <div className="text-3xl">{role.icon}</div>
                 <h3>{role.title}</h3>
                 <p>{role.description}</p>
@@ -396,8 +396,8 @@ const Landing = () => {
             <h2 className="section-title">Trusted by teams like yours</h2>
           </div>
           <div className="max-w-6xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((testimonial) => (
-              <div key={testimonial.name} className="testimonial-card">
+            {testimonials.map((testimonial, index) => (
+              <div key={testimonial.name} className={`testimonial-card fade-up delay-${index}`}>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-12 h-12 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center font-semibold">
                     {testimonial.name[0]}
@@ -422,7 +422,7 @@ const Landing = () => {
 
         {/* CTA */}
         <section className="section-padding landing-cta-gradient text-center">
-          <div className="max-w-4xl mx-auto px-6 text-white space-y-6">
+          <div className="max-w-4xl mx-auto px-6 text-white space-y-6 fade-up">
             <p className="section-eyebrow text-orange-200">Ready to transform?</p>
             <h2 className="text-4xl md:text-5xl font-black leading-tight">
               Ready to transform your hospitality operations?
