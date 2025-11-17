@@ -17,9 +17,19 @@ from collections import Counter
 app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
 
-# CORS configuration - allow all localhost variations
-CORS(app, 
-     origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3000/", "http://127.0.0.1:3000/"], 
+# CORS configuration - allow localhost plus configured origins
+default_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3000/",
+    "http://127.0.0.1:3000/",
+]
+extra_origins = os.getenv("ALLOWED_ORIGINS", "")
+if extra_origins:
+    default_origins.extend([origin.strip() for origin in extra_origins.split(",") if origin.strip()])
+
+CORS(app,
+     origins=default_origins,
      supports_credentials=True, 
      allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
      methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
