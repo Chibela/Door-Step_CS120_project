@@ -3,6 +3,7 @@ import { Calendar, CheckCircle2, ClipboardList, Clock, ArrowRight } from 'lucide
 import { useNavigate } from 'react-router-dom';
 import { getSchedules, getStaffProfile } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import StaffHeader from '../../components/Staff/Header';
 
 const StaffDashboard = () => {
   const [schedules, setSchedules] = useState([]);
@@ -73,17 +74,13 @@ const StaffDashboard = () => {
 
   return (
     <div className="min-h-screen bg-app-gradient p-6">
-      <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner">
-            <ClipboardList className="w-6 h-6 text-primary" />
-          </div>
-          <div>
-            <p className="text-sm text-text-light">Welcome back</p>
-            <h1 className="text-2xl font-bold text-primary-dark">{user ? `${user.first_name} ${user.last_name}`.trim() : 'Staff'}</h1>
-          </div>
+      <StaffHeader subtitle="Staff Dashboard" />
+      <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-sm text-text-light">Welcome back</p>
+          <h1 className="text-2xl font-bold text-primary-dark">{user ? `${user.first_name} ${user.last_name}`.trim() : 'Staff'}</h1>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-wrap">
           <button
             onClick={() => navigate('/staff/schedule')}
             className="px-4 py-2 bg-dust-grey rounded-xl hover:bg-primary hover:text-white transition-all"

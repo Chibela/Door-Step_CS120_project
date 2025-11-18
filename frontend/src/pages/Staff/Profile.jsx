@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Mail, Phone, MapPin, Calendar, UserCircle, LogOut } from 'lucide-react';
+import { Mail, Phone, MapPin, Calendar, UserCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
-import { getStaffProfile, updateStaffProfile, logout } from '../../services/api';
+import { getStaffProfile, updateStaffProfile } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import StaffHeader from '../../components/Staff/Header';
 
 const StaffProfile = () => {
-  const { user: contextUser, logout: setLogout } = useContext(AuthContext);
+  const { user: contextUser } = useContext(AuthContext);
   const [user, setUser] = useState(contextUser);
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -30,7 +31,6 @@ const StaffProfile = () => {
     }
   };
 
-  const handleLogout = async () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -51,45 +51,16 @@ const StaffProfile = () => {
     }
   };
 
-    try {
-      await logout();
-      setLogout();
-      showToast('Logged out successfully', 'success');
-      navigate('/login');
-    } catch (error) {
-      showToast('Failed to logout', 'error');
-    }
-  };
-
   return (
     <div className="min-h-screen bg-app-gradient p-6">
-      {/* Header */}
-      <div className="bg-white rounded-2xl shadow-xl p-6 mb-6 border border-gray-100">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shadow-inner">
-              <UserCircle className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-primary-dark">ServeDash</h1>
-              <p className="text-text-light">Staff Profile</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/staff/schedule')}
-              className="px-4 py-2 text-text-light hover:bg-dust-grey hover:text-primary-dark rounded-lg transition-all"
-            >
-              Back to Schedule
-            </button>
-            <button
-              onClick={handleLogout}
-              className="p-2 hover:bg-accent hover:text-white rounded-lg transition-all"
-            >
-              <LogOut className="w-5 h-5 text-text-dark" />
-            </button>
-          </div>
-        </div>
+      <StaffHeader subtitle="Staff Profile" />
+      <div className="flex justify-end mb-4">
+        <button
+          onClick={() => navigate('/staff/schedule')}
+          className="px-4 py-2 text-text-light hover:bg-dust-grey hover:text-primary-dark rounded-lg transition-all bg-white shadow-md border border-gray-100"
+        >
+          Back to Schedule
+        </button>
       </div>
 
       <div className="max-w-2xl mx-auto">
