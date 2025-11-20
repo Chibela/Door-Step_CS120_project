@@ -287,11 +287,10 @@ const CustomerCart = () => {
                     return (
                     <div key={item.id} className={`flex items-center justify-between p-4 ${conflicts.length ? 'bg-red-50 border border-red-200' : 'bg-gray-50'} rounded-xl`}>
                       <div className="flex items-center gap-4">
-<<<<<<< HEAD
                         <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative">
                           {item.image ? (
-                            <img 
-                              src={item.image} 
+                            <img
+                              src={item.image}
                               alt={item.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -301,16 +300,13 @@ const CustomerCart = () => {
                               }}
                             />
                           ) : null}
-                          <div 
+                          <div
                             className="image-fallback w-full h-full flex items-center justify-center absolute inset-0"
-                            style={{ display: (item.image && item.image.trim()) ? 'none' : 'flex' }}
+                            style={{ display: item.image && item.image.trim() ? 'none' : 'flex' }}
                           >
-                            <span className="text-6xl">🍔</span>
+                            <span className="text-3xl">🍔</span>
                           </div>
                         </div>
-=======
-                        <div className="w-16 h-16 bg-gray-200 rounded-lg" />
->>>>>>> 16a127c (Add Stripe checkout flow)
                         <div>
                           <h3 className="font-semibold text-gray-900">{item.name}</h3>
                           <p className="text-sm text-gray-500">${item.price.toFixed(2)} each</p>

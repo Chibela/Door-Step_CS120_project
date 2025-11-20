@@ -137,16 +137,5 @@ export const checkScheduleConflicts = async (params) => {
   return response.data;
 };
 
-// Stripe Payments
-export const createPaymentIntent = async (orderData) => {
-  const response = await api.post('/create-payment-intent', orderData);
-  return response.data;
-};
-
-export const confirmPayment = async (paymentData) => {
-  const response = await api.post('/confirm-payment', paymentData);
-  return response.data;
-};
-
 export default api;
 
