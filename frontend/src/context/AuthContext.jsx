@@ -16,6 +16,9 @@ export const AuthProvider = ({ children }) => {
       const backendUser = await getCurrentUser();
       setUser(backendUser);
     } catch (error) {
+      if (error?.response?.status && error.response.status !== 401) {
+        console.error('Authentication check failed:', error);
+      }
       setUser(null);
     } finally {
       setLoading(false);

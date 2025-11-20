@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { Calendar, Clock, CheckCircle, XCircle, ClipboardCheck, AlertCircle, MapPin, Briefcase } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, XCircle, ClipboardCheck, AlertCircle, MapPin, Briefcase, Send } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
-import { getSchedules, updateAppointment } from '../../services/api';
+import { getSchedules, updateAppointment, getTimeSlots, requestShift } from '../../services/api';
 import { useToast } from '../../components/Toast';
 import StaffHeader from '../../components/Staff/Header';
 
@@ -10,12 +10,22 @@ const StaffSchedule = () => {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState('');
+  const [timeSlots, setTimeSlots] = useState([]);
+  const [requesting, setRequesting] = useState(false);
+  const [requestForm, setRequestForm] = useState({
+    date: '',
+    time_slot: '',
+    location: '',
+    shift_type: 'Prep Shift',
+    notes: '',
+  });
   const { user } = useContext(AuthContext);
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   useEffect(() => {
     loadSchedules();
+    loadTimeSlots();
   }, []);
 
   const loadSchedules = async () => {
@@ -27,6 +37,51 @@ const StaffSchedule = () => {
       showToast('Failed to load schedule', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTimeSlots = async () => {
+    try {
+      const slots = await getTimeSlots();
+      setTimeSlots(slots);
+    } catch (error) {
+      console.error('Error loading time slots:', error);
+    }
+  };
+
+  const handleRequestChange = (e) => {
+    const { name, value } = e.target;
+    setRequestForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const submitShiftRequest = async (e) => {
+    e.preventDefault();
+    if (!requestForm.date || !requestForm.time_slot) {
+      showToast('Select a date and time slot before submitting.', 'warning');
+      return;
+    }
+    setRequesting(true);
+    try {
+      await requestShift({
+        date: requestForm.date,
+        time_slot: requestForm.time_slot,
+        location: requestForm.location || 'Main Truck',
+        shift_type: requestForm.shift_type,
+        notes: requestForm.notes,
+      });
+      showToast('Shift request sent for approval', 'success');
+      setRequestForm({
+        date: '',
+        time_slot: '',
+        location: '',
+        shift_type: 'Prep Shift',
+        notes: '',
+      });
+      loadSchedules();
+    } catch (error) {
+      showToast(error.response?.data?.error || 'Failed to submit request', 'error');
+    } finally {
+      setRequesting(false);
     }
   };
 
@@ -76,7 +131,7 @@ const StaffSchedule = () => {
       ['scheduled', 'confirmed'].includes(schedule.status) && schedule.dateObj && schedule.dateObj >= now
   );
   const nextShift = upcomingSchedules[0];
-  const pendingCount = schedules.filter((s) => s.status === 'scheduled').length;
+  const pendingCount = schedules.filter((s) => ['scheduled', 'requested'].includes(s.status)).length;
   const completedCount = schedules.filter((s) => s.status === 'completed').length;
   const thisWeekCompleted = schedules.filter((s) => {
     if (s.status !== 'completed') return false;
@@ -99,7 +154,7 @@ const StaffSchedule = () => {
     {
       title: 'Pending Actions',
       value: pendingCount,
-      detail: 'Awaiting confirmation',
+      detail: 'Scheduled or awaiting approval',
       icon: AlertCircle,
     },
     {
@@ -128,6 +183,8 @@ const StaffSchedule = () => {
     { label: 'Complete', status: 'completed', icon: CheckCircle, className: 'text-primary-dark' },
     { label: 'Decline', status: 'cancelled', icon: XCircle, className: 'text-red-600' },
   ];
+
+  const actionableStatuses = ['scheduled', 'confirmed'];
 
   const actionItems = upcomingSchedules.slice(0, 3);
 
@@ -173,6 +230,93 @@ const StaffSchedule = () => {
       </div>
 
       <div className="max-w-4xl mx-auto space-y-6">
+        <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold text-text-dark">Request a Shift</h2>
+              <p className="text-sm text-text-light">Tell dispatch when you’re available</p>
+            </div>
+          </div>
+          <form onSubmit={submitShiftRequest} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-text-light mb-2">Preferred Date</label>
+              <input
+                type="date"
+                name="date"
+                value={requestForm.date}
+                onChange={handleRequestChange}
+                className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-light mb-2">Time Slot</label>
+              <select
+                name="time_slot"
+                value={requestForm.time_slot}
+                onChange={handleRequestChange}
+                className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                required
+              >
+                <option value="">Select a time</option>
+                {timeSlots.map((slot) => (
+                  <option key={slot} value={slot}>
+                    {slot}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-light mb-2">Shift Type</label>
+              <select
+                name="shift_type"
+                value={requestForm.shift_type}
+                onChange={handleRequestChange}
+                className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+              >
+                {['Prep Shift', 'Lunch Service', 'Dinner Service', 'Event / Catering', 'Inventory & Restock'].map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-light mb-2">Preferred Location</label>
+              <input
+                type="text"
+                name="location"
+                value={requestForm.location}
+                onChange={handleRequestChange}
+                placeholder="e.g., Downtown truck, Catering"
+                className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-text-light mb-2">
+                Notes for Dispatch (optional)
+              </label>
+              <textarea
+                name="notes"
+                value={requestForm.notes}
+                onChange={handleRequestChange}
+                rows={3}
+                placeholder="Let us know if you’re covering someone, special availability, etc."
+                className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+              />
+            </div>
+            <div className="md:col-span-2 flex justify-end">
+              <button
+                type="submit"
+                disabled={requesting}
+                className="flex items-center gap-2 px-6 py-2 bg-primary-gradient text-white rounded-xl shadow hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                <Send className="w-4 h-4" />
+                {requesting ? 'Submitting...' : 'Submit Request'}
+              </button>
+            </div>
+          </form>
+        </div>
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-text-dark">Action Center</h2>
@@ -274,31 +418,41 @@ const StaffSchedule = () => {
                           </div>
                           <span
                             className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                              schedule.status === 'confirmed'
+                              schedule.status === 'requested'
+                                ? 'bg-purple-100 text-purple-700'
+                                : schedule.status === 'confirmed'
                                 ? 'bg-green-100 text-green-700'
                                 : schedule.status === 'completed'
                                 ? 'bg-primary/10 text-primary-dark'
                                 : schedule.status === 'cancelled'
                                 ? 'bg-red-100 text-red-700'
+                                : schedule.status === 'denied'
+                                ? 'bg-gray-200 text-gray-600'
                                 : 'bg-yellow-100 text-yellow-700'
                             }`}
                           >
                             {schedule.status}
                           </span>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          {quickActions.map(({ label, status, icon: Icon, className }) => (
-                            <button
-                              key={status}
-                              disabled={updatingId === schedule.appointment_id}
-                              onClick={() => handleStatusChange(schedule.appointment_id, status)}
-                              className={`flex items-center gap-1 px-3 py-1 rounded-full bg-white text-sm font-medium shadow ${className} hover:shadow-md transition-all disabled:opacity-60`}
-                            >
-                              <Icon className="w-4 h-4" />
-                              {label}
-                            </button>
-                          ))}
-                        </div>
+                        {schedule.status === 'requested' ? (
+                          <p className="text-xs text-text-light">
+                            Awaiting manager approval. You can cancel through dispatch if needed.
+                          </p>
+                        ) : actionableStatuses.includes(schedule.status) ? (
+                          <div className="flex flex-wrap gap-2">
+                            {quickActions.map(({ label, status, icon: Icon, className }) => (
+                              <button
+                                key={status}
+                                disabled={updatingId === schedule.appointment_id}
+                                onClick={() => handleStatusChange(schedule.appointment_id, status)}
+                                className={`flex items-center gap-1 px-3 py-1 rounded-full bg-white text-sm font-medium shadow ${className} hover:shadow-md transition-all disabled:opacity-60`}
+                              >
+                                <Icon className="w-4 h-4" />
+                                {label}
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>

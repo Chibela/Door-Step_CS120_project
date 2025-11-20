@@ -158,7 +158,7 @@ DEFAULT_SHIFT_TYPES = [
 def read_users():
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role FROM users"
+            "SELECT email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies, availability FROM users"
         )
         rows = cur.fetchall()
     return [dict(row) for row in rows]
@@ -176,7 +176,12 @@ def read_orders():
 def read_schedules():
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT appointment_id, manager_email, staff_email, staff_name, date, time_slot, status, notes, created_at FROM schedules"
+            """
+            SELECT appointment_id, manager_email, staff_email, staff_name, date, time_slot,
+                   status, notes, created_at, start_time, end_time, location, shift_type,
+                   staff_notes, priority
+            FROM schedules
+            """
         )
         rows = cur.fetchall()
     return [dict(row) for row in rows]
@@ -204,7 +209,16 @@ def get_user_by_email(email):
     email = email.lower()
     with conn.cursor() as cur:
         cur.execute(
+<<<<<<< HEAD
             "SELECT email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies, availability FROM users WHERE LOWER(email) = %s",
+=======
+            """
+            SELECT email, password, first_name, last_name, mobile, address, dob, sex,
+                   registration_date, role, allergies, availability
+            FROM users
+            WHERE LOWER(email) = %s
+            """,
+>>>>>>> 6c4b7f45cde3e44e04a355d560b24bc68bcf6c46
             (email,),
         )
         row = cur.fetchone()
@@ -760,6 +774,61 @@ def create_appointment():
         'success': True,
         'appointment_id': appointment_id
     })
+
+
+@app.route('/api/schedules/request', methods=['POST'])
+@role_required('staff')
+def request_schedule():
+    """Staff: request a new shift"""
+    data = request.json or {}
+    staff_user = get_session_user() or {}
+    staff_email = (staff_user.get('email') or '').strip().lower()
+    if not staff_email:
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+
+    date = (data.get('date') or '').strip()
+    time_slot = (data.get('time_slot') or '').strip()
+    notes = (data.get('notes') or '').strip()
+    location = (data.get('location') or 'Main Truck').strip()
+    shift_type = (data.get('shift_type') or DEFAULT_SHIFT_TYPES[0]).strip()
+    priority = (data.get('priority') or 'normal').strip()
+    start_time = data.get('start_time')
+    end_time = data.get('end_time')
+
+    if not date or not time_slot:
+        return jsonify({'success': False, 'error': 'Date and time are required'}), 400
+
+    staff_name = f"{staff_user.get('first_name', '').strip()} {staff_user.get('last_name', '').strip()}".strip() or staff_user.get('email', '')
+
+    iso_start = start_time or parse_time_string(date, time_slot)
+    iso_end = end_time
+    if not iso_end and iso_start:
+        try:
+            iso_end = (datetime.fromisoformat(iso_start) + timedelta(hours=2)).isoformat()
+        except Exception:
+            iso_end = None
+
+    if iso_start and iso_end:
+        conflicts = check_schedule_conflicts(staff_email, iso_start, iso_end)
+        if conflicts:
+            return jsonify({'success': False, 'error': 'You already have a shift scheduled during that time.', 'conflicts': conflicts}), 400
+
+    appointment_id = save_appointment(
+        manager_email=staff_email,
+        staff_email=staff_email,
+        staff_name=staff_name,
+        date=date,
+        time_slot=time_slot,
+        status='requested',
+        notes=notes,
+        start_time=iso_start,
+        end_time=iso_end,
+        location=location,
+        shift_type=shift_type,
+        priority=priority
+    )
+
+    return jsonify({'success': True, 'appointment_id': appointment_id})
 # Preview conflicts endpoint
 @app.route('/api/schedules/conflicts', methods=['GET'])
 @role_required('admin')
@@ -806,7 +875,8 @@ def update_schedule_record(appointment_id, updates):
         "UPDATE schedules "
         f"SET {', '.join(set_clauses)} "
         "WHERE appointment_id = %s "
-        "RETURNING appointment_id, manager_email, staff_email, staff_name, date, time_slot, status, notes, created_at"
+        "RETURNING appointment_id, manager_email, staff_email, staff_name, date, time_slot, status, notes, created_at, "
+        "start_time, end_time, location, shift_type, staff_notes, priority"
     )
     with conn.cursor() as cur:
         cur.execute(query, tuple(params))
@@ -841,6 +911,8 @@ def update_schedule(appointment_id):
     new_staff_email = current.get('staff_email', '').lower()
 
     if role == 'admin':
+        if user_email:
+            updates['manager_email'] = user_email
         staff_email_override = data.get('staff_email')
         if staff_email_override:
             staff_user = get_user_by_email(staff_email_override)

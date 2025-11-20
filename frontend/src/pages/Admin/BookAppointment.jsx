@@ -20,6 +20,7 @@ const BookAppointment = () => {
   const [loading, setLoading] = useState(false);
   const [conflicts, setConflicts] = useState([]);
   const [checkingConflicts, setCheckingConflicts] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -87,6 +88,15 @@ const BookAppointment = () => {
     return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
   };
 
+  const clearFieldError = (field) => {
+    setFormErrors((prev) => {
+      if (!prev[field]) return prev;
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
+
   const loadData = async () => {
     try {
       const [staffData, timeSlotsData] = await Promise.all([
@@ -100,12 +110,24 @@ const BookAppointment = () => {
     }
   };
 
+  const validateBooking = () => {
+    const errors = {};
+    if (!selectedStaff) errors.staff = 'Select a staff member.';
+    if (!selectedDate) errors.date = 'Choose a date.';
+    if (!selectedTime) errors.time_slot = 'Choose a time slot.';
+    if (!location.trim()) errors.location = 'Provide a shift location.';
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedStaff || !selectedDate || !selectedTime) {
-      showToast('Please fill all fields', 'warning');
+    const errors = validateBooking();
+    if (Object.keys(errors).length) {
+      setFormErrors(errors);
+      showToast('Please complete the required fields.', 'warning');
       return;
     }
+    setFormErrors({});
 
     const startIso = startTime ? `${selectedDate}T${startTime}:00` : null;
     const endIso = endTime ? `${selectedDate}T${endTime}:00` : null;
@@ -123,7 +145,7 @@ const BookAppointment = () => {
         start_time: startIso,
         end_time: endIso,
       });
-      showToast('Appointment booked successfully!', 'success');
+      showToast('Shift scheduled successfully!', 'success');
       setSelectedStaff('');
       setSelectedDate('');
       setSelectedTime('');
@@ -139,7 +161,7 @@ const BookAppointment = () => {
       if (apiError?.conflicts) {
         setConflicts(apiError.conflicts);
       }
-      showToast(apiError?.error || 'Failed to book appointment', 'error');
+      showToast(apiError?.error || 'Failed to create shift', 'error');
     } finally {
       setLoading(false);
     }
@@ -210,7 +232,7 @@ const BookAppointment = () => {
         <Sidebar />
         <div className="flex-1">
           <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-            <h2 className="text-2xl font-bold text-text-dark mb-6">Book Appointment</h2>
+            <h2 className="text-2xl font-bold text-text-dark mb-6">Create Staff Schedule</h2>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
@@ -221,7 +243,10 @@ const BookAppointment = () => {
                   <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
                   <select
                     value={selectedStaff}
-                    onChange={(e) => setSelectedStaff(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedStaff(e.target.value);
+                      clearFieldError('staff');
+                    }}
                     className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark bg-white"
                     required
                   >
@@ -233,6 +258,9 @@ const BookAppointment = () => {
                     ))}
                   </select>
                 </div>
+                {formErrors.staff && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.staff}</p>
+                )}
               </div>
 
               {selectedStaffMember && (
@@ -267,12 +295,18 @@ const BookAppointment = () => {
                   <input
                     type="date"
                     value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      clearFieldError('date');
+                    }}
                     min={today}
                     className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark"
                     required
                   />
                 </div>
+                {formErrors.date && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.date}</p>
+                )}
               </div>
 
               <div>
@@ -286,6 +320,7 @@ const BookAppointment = () => {
                     onChange={(e) => {
                       setSelectedTime(e.target.value);
                       updateTimesFromSlot(e.target.value);
+                      clearFieldError('time_slot');
                     }}
                     className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark bg-white"
                     required
@@ -298,6 +333,9 @@ const BookAppointment = () => {
                     ))}
                   </select>
                 </div>
+                {formErrors.time_slot && (
+                  <p className="text-xs text-red-500 mt-1">{formErrors.time_slot}</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -360,11 +398,21 @@ const BookAppointment = () => {
                     <input
                       type="text"
                       value={location}
-                      onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e) => {
+                      setLocation(e.target.value);
+                      clearFieldError('location');
+                    }}
                       placeholder="e.g., Downtown Pop-Up"
-                      className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      className={`w-full pl-10 pr-4 py-3 border-2 rounded-xl focus:ring-2 transition-all ${
+                        formErrors.location ? 'border-red-400 focus:ring-red-200' : 'border-dust-grey focus:ring-primary focus:border-primary'
+                      }`}
+                      aria-invalid={Boolean(formErrors.location)}
+                      required
                     />
                   </div>
+                  {formErrors.location && (
+                    <p className="text-xs text-red-500 mt-1">{formErrors.location}</p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-dark mb-2">Shift Type</label>
@@ -411,7 +459,7 @@ const BookAppointment = () => {
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   className="w-full min-h-[120px] border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark p-3"
-                  placeholder="Add context or goals for this appointment"
+                  placeholder="Add context or goals for this shift"
                 />
               </div>
 
@@ -420,7 +468,7 @@ const BookAppointment = () => {
                 disabled={loading}
                 className="w-full bg-primary-gradient text-white py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02] disabled:transform-none"
               >
-                {loading ? 'Booking...' : 'Book Appointment'}
+                {loading ? 'Saving...' : 'Create Shift'}
               </button>
             </form>
           </div>

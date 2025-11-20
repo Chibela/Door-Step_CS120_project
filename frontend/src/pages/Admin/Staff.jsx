@@ -26,6 +26,7 @@ const AdminStaff = () => {
   const [formData, setFormData] = useState(initialFormState);
   const [editingStaff, setEditingStaff] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -52,6 +53,7 @@ const AdminStaff = () => {
       setEditingStaff(null);
       setFormData(initialFormState);
     }
+    setFormErrors({});
     setShowForm(true);
   };
 
@@ -59,15 +61,40 @@ const AdminStaff = () => {
     setShowForm(false);
     setEditingStaff(null);
     setFormData(initialFormState);
+    setFormErrors({});
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (formErrors[name]) {
+      setFormErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
+  };
+
+  const validateForm = (isEditing) => {
+    const errors = {};
+    if (!formData.first_name.trim()) errors.first_name = 'First name is required.';
+    if (!formData.last_name.trim()) errors.last_name = 'Last name is required.';
+    if (!formData.email.trim()) errors.email = 'Email is required.';
+    if (!isEditing && !formData.password.trim()) {
+      errors.password = 'Temporary password is required when creating staff.';
+    }
+    return errors;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const errors = validateForm(Boolean(editingStaff));
+    if (Object.keys(errors).length) {
+      setFormErrors(errors);
+      showToast('Please fix the highlighted fields.', 'warning');
+      return;
+    }
     setSaving(true);
     try {
       const payload = { ...formData };
@@ -222,9 +249,15 @@ const AdminStaff = () => {
                         name="first_name"
                         value={formData.first_name}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      className={`w-full px-4 py-2 border-2 rounded-xl focus:ring-2 transition-all ${
+                        formErrors.first_name ? 'border-red-400 focus:ring-red-200' : 'border-dust-grey focus:ring-primary focus:border-primary'
+                      }`}
+                      aria-invalid={Boolean(formErrors.first_name)}
                         required
                       />
+                    {formErrors.first_name && (
+                      <p className="text-xs text-red-500 mt-1">{formErrors.first_name}</p>
+                    )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-text-light mb-2">Last Name</label>
@@ -233,9 +266,15 @@ const AdminStaff = () => {
                         name="last_name"
                         value={formData.last_name}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      className={`w-full px-4 py-2 border-2 rounded-xl focus:ring-2 transition-all ${
+                        formErrors.last_name ? 'border-red-400 focus:ring-red-200' : 'border-dust-grey focus:ring-primary focus:border-primary'
+                      }`}
+                      aria-invalid={Boolean(formErrors.last_name)}
                         required
                       />
+                    {formErrors.last_name && (
+                      <p className="text-xs text-red-500 mt-1">{formErrors.last_name}</p>
+                    )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -246,10 +285,16 @@ const AdminStaff = () => {
                         name="email"
                         value={formData.email}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all disabled:bg-gray-100"
+                      className={`w-full px-4 py-2 border-2 rounded-xl focus:ring-2 transition-all disabled:bg-gray-100 ${
+                        formErrors.email ? 'border-red-400 focus:ring-red-200' : 'border-dust-grey focus:ring-primary focus:border-primary'
+                      }`}
+                      aria-invalid={Boolean(formErrors.email)}
                         required
                         disabled={Boolean(editingStaff)}
                       />
+                    {formErrors.email && (
+                      <p className="text-xs text-red-500 mt-1">{formErrors.email}</p>
+                    )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-text-light mb-2">
@@ -260,10 +305,16 @@ const AdminStaff = () => {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      className={`w-full px-4 py-2 border-2 rounded-xl focus:ring-2 transition-all ${
+                        formErrors.password ? 'border-red-400 focus:ring-red-200' : 'border-dust-grey focus:ring-primary focus:border-primary'
+                      }`}
+                      aria-invalid={Boolean(formErrors.password)}
                         placeholder={editingStaff ? 'Leave blank to keep current password' : 'Set a temporary password'}
                         required={!editingStaff}
                       />
+                    {formErrors.password && (
+                      <p className="text-xs text-red-500 mt-1">{formErrors.password}</p>
+                    )}
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
