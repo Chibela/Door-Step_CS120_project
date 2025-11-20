@@ -36,6 +36,11 @@ def ensure_columns():
         'staff_notes': "ALTER TABLE schedules ADD COLUMN staff_notes TEXT",
         'priority': "ALTER TABLE schedules ADD COLUMN priority TEXT DEFAULT 'normal'",
     }
+    order_columns = {
+        'payment_intent_id': "ALTER TABLE orders ADD COLUMN payment_intent_id TEXT",
+        'payment_status': "ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'pending'",
+        'currency': "ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'usd'",
+    }
 
     with conn.cursor() as cur:
         cur.execute(
@@ -66,6 +71,21 @@ def ensure_columns():
             with conn.cursor() as cur:
                 cur.execute(statement)
                 print(f"Added schedules.{column}")
+
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name FROM information_schema.columns
+            WHERE table_name = 'orders'
+            """
+        )
+        existing_order_cols = {row['column_name'] for row in cur.fetchall()}
+
+    for column, statement in order_columns.items():
+        if column not in existing_order_cols:
+            with conn.cursor() as cur:
+                cur.execute(statement)
+                print(f"Added orders.{column}")
 
 
 def seed_user(email, password, role, **extra):

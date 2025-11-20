@@ -31,6 +31,16 @@ export const getCurrentUser = async () => {
   return response.data;
 };
 
+export const getStripeConfig = async () => {
+  const response = await api.get('/payments/config');
+  return response.data;
+};
+
+export const createPaymentIntent = async (payload) => {
+  const response = await api.post('/payments/create-intent', payload);
+  return response.data;
+};
+
 export const getCustomerProfile = async () => {
   const response = await api.get('/customer/profile');
   return response.data;
