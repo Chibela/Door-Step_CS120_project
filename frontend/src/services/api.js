@@ -79,6 +79,11 @@ export const updateAppointment = async (appointmentId, updates) => {
   return response.data;
 };
 
+export const requestShift = async (requestData) => {
+  const response = await api.post('/schedules/request', requestData);
+  return response.data;
+};
+
 // Admin
 export const getAdminDashboard = async () => {
   const response = await api.get('/admin/dashboard');

@@ -67,12 +67,14 @@ const AdminSchedules = () => {
     }
   };
 
-  const statusOptions = ['scheduled', 'confirmed', 'completed', 'cancelled'];
+  const statusOptions = ['requested', 'scheduled', 'confirmed', 'completed', 'cancelled', 'denied'];
 
   const shiftOptions = useMemo(
     () => ['all', ...new Set([...shiftOptionsDefaults, ...schedules.map((s) => s.shift_type).filter(Boolean)])],
     [schedules]
   );
+
+  const requestQueue = schedules.filter((schedule) => schedule.status === 'requested');
 
   const formatTimeRange = (schedule) => {
     if (schedule.start_time && schedule.end_time) {
@@ -174,12 +176,16 @@ const AdminSchedules = () => {
 
   const getStatusBadge = (status) => {
     switch (status) {
+      case 'requested':
+        return 'bg-purple-100 text-purple-700';
       case 'confirmed':
         return 'bg-green-100 text-green-700';
       case 'completed':
         return 'bg-primary/10 text-primary-dark';
       case 'cancelled':
         return 'bg-red-100 text-red-700';
+      case 'denied':
+        return 'bg-gray-200 text-gray-600';
       case 'scheduled':
       default:
         return 'bg-yellow-100 text-yellow-700';
@@ -247,6 +253,56 @@ const AdminSchedules = () => {
                 </button>
               </div>
             </div>
+
+            {requestQueue.length > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-4 mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-text-dark">Pending Shift Requests</h3>
+                    <p className="text-xs text-text-light">{requestQueue.length} awaiting review</p>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {requestQueue.map((request) => (
+                    <div
+                      key={`request-${request.appointment_id}`}
+                      className="bg-white rounded-xl p-4 border border-primary/10 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                    >
+                      <div>
+                        <p className="font-semibold text-text-dark">{request.staff_name}</p>
+                        <p className="text-xs text-text-light">{request.staff_email}</p>
+                        <p className="text-sm text-text-light mt-1">
+                          {request.date ? new Date(request.date).toLocaleDateString() : 'TBD'} •{' '}
+                          {request.time_slot || 'Time TBD'}
+                        </p>
+                        {request.location && (
+                          <p className="text-xs text-text-dark mt-1">Location: {request.location}</p>
+                        )}
+                        {request.notes && (
+                          <p className="text-xs text-text-light mt-1">Notes: {request.notes}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(request.appointment_id, 'denied')}
+                          className="px-4 py-2 text-sm font-semibold text-red-600 bg-red-50 rounded-xl hover:bg-red-100 transition-all"
+                        >
+                          Deny
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleStatusChange(request.appointment_id, 'scheduled')}
+                          className="px-4 py-2 text-sm font-semibold text-white bg-primary-gradient rounded-xl shadow hover:shadow-lg transition-all"
+                        >
+                          Approve & Assign
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {loading ? (
               <div className="text-center py-12">

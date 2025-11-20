@@ -10,7 +10,7 @@ const Sidebar = () => {
     { path: '/admin/orders', icon: ShoppingBag, label: 'Orders' },
     { path: '/admin/menu', icon: Utensils, label: 'Menu' },
     { path: '/admin/staff', icon: Users, label: 'Staff' },
-    { path: '/admin/book-appointment', icon: Calendar, label: 'Book Appointment' },
+    { path: '/admin/book-appointment', icon: Calendar, label: 'Create Schedule' },
     { path: '/admin/schedules', icon: CalendarDays, label: 'Schedules' },
   ];
 
