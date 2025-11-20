@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, CreditCard, X } from 'lucide-react';
 import Header from '../../components/Customer/Header';
 import Sidebar from '../../components/Customer/Sidebar';
 import { createOrder } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import PaymentForm from '../../components/PaymentForm';
 
 const CustomerCart = () => {
   const [cart, setCart] = useState([]);
   const [tip, setTip] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -48,12 +50,15 @@ const CustomerCart = () => {
   const tax = subtotal * 0.10;
   const total = subtotal + tax + tip;
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (cart.length === 0) {
       showToast('Your cart is empty', 'warning');
       return;
     }
+    setShowPayment(true);
+  };
 
+  const handlePaymentSuccess = async (paymentData) => {
     setLoading(true);
     try {
       await createOrder({
@@ -62,9 +67,11 @@ const CustomerCart = () => {
         tax: tax.toFixed(2),
         tip: tip.toFixed(2),
         total: total.toFixed(2),
+        ...paymentData,
       });
       localStorage.removeItem('cart');
       showToast('Order placed successfully!', 'success');
+      setShowPayment(false);
       navigate('/customer/orders');
     } catch (error) {
       const conflicts = error.response?.data?.conflicts;
@@ -76,9 +83,14 @@ const CustomerCart = () => {
       } else {
         showToast(error.response?.data?.error || 'Failed to place order', 'error');
       }
+      setShowPayment(false);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentCancel = () => {
+    setShowPayment(false);
   };
 
   return (
@@ -176,13 +188,42 @@ const CustomerCart = () => {
                   </div>
                   <button
                     onClick={handleCheckout}
-                    disabled={loading}
-                    className="w-full bg-primary-gradient text-white py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02] disabled:transform-none"
+                    disabled={loading || showPayment}
+                    className="w-full flex items-center justify-center gap-2 bg-primary-gradient text-white py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02] disabled:transform-none"
                   >
-                    {loading ? 'Processing...' : 'Place Order'}
+                    <CreditCard className="w-5 h-5" />
+                    {showPayment ? 'Processing Payment...' : 'Proceed to Payment'}
                   </button>
                 </div>
               </>
+            )}
+
+            {showPayment && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative">
+                  <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between rounded-t-2xl">
+                    <h3 className="text-2xl font-bold text-text-dark">Complete Payment</h3>
+                    <button
+                      onClick={handlePaymentCancel}
+                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                      disabled={loading}
+                    >
+                      <X className="w-5 h-5 text-text-light" />
+                    </button>
+                  </div>
+                  <div className="p-6">
+                    <PaymentForm
+                      amount={total.toFixed(2)}
+                      items={cart}
+                      subtotal={subtotal.toFixed(2)}
+                      tax={tax.toFixed(2)}
+                      tip={tip.toFixed(2)}
+                      onSuccess={handlePaymentSuccess}
+                      onCancel={handlePaymentCancel}
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>

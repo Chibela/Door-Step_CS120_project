@@ -127,5 +127,16 @@ export const checkScheduleConflicts = async (params) => {
   return response.data;
 };
 
+// Payments
+export const getStripeConfig = async () => {
+  const response = await api.get('/payments/config');
+  return response.data;
+};
+
+export const createPaymentIntent = async (paymentData) => {
+  const response = await api.post('/payments/create-intent', paymentData);
+  return response.data;
+};
+
 export default api;
 

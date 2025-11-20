@@ -15,11 +15,19 @@ from functools import wraps
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import stripe
 
 load_dotenv(".env.local")
 load_dotenv()
 
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+STRIPE_DEFAULT_CURRENCY = os.getenv("STRIPE_DEFAULT_CURRENCY", "usd")
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
 conn.autocommit = True
@@ -77,6 +85,32 @@ def ensure_schedules_columns():
 
 
 ensure_schedules_columns()
+
+
+def ensure_orders_payment_columns():
+    columns = {
+        'payment_intent_id': "ALTER TABLE orders ADD COLUMN payment_intent_id TEXT",
+        'payment_status': "ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'pending'",
+        'currency': "ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'usd'",
+    }
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'orders'
+                """
+            )
+            existing = {row['column_name'] for row in cur.fetchall()}
+        for column, statement in columns.items():
+            if column not in existing:
+                with conn.cursor() as cur:
+                    cur.execute(statement)
+    except Exception as e:
+        print(f"Warning: unable to ensure orders payment columns: {e}")
+
+
+ensure_orders_payment_columns()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-me")
@@ -167,7 +201,7 @@ def read_users():
 def read_orders():
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT order_id, email, items, subtotal, tax, tip, total, status, created_at FROM orders"
+            "SELECT order_id, email, items, subtotal, tax, tip, total, status, created_at, payment_intent_id, payment_status, currency FROM orders"
         )
         rows = cur.fetchall()
     return [dict(row) for row in rows]
@@ -280,7 +314,7 @@ def update_order_record(order_id, updates):
         set_clauses.append(f"{key} = %s")
         params.append(value)
     params.append(order_id)
-    query = f"UPDATE orders SET {', '.join(set_clauses)} WHERE order_id = %s RETURNING order_id, email, items, subtotal, tax, tip, total, status, created_at"
+    query = f"UPDATE orders SET {', '.join(set_clauses)} WHERE order_id = %s RETURNING order_id, email, items, subtotal, tax, tip, total, status, created_at, payment_intent_id, payment_status, currency"
     with conn.cursor() as cur:
         cur.execute(query, tuple(params))
         row = cur.fetchone()
@@ -310,11 +344,11 @@ def save_user(email, password, first_name, last_name, mobile, address, dob, sex,
         )
 
 
-def save_order(email, items, subtotal, tax, tip, total):
+def save_order(email, items, subtotal, tax, tip, total, payment_intent_id=None, payment_status='pending', currency='usd'):
     order_id = f"ORD{int(datetime.now().timestamp() * 1000)}"
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO orders (order_id, email, items, subtotal, tax, tip, total, status, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO orders (order_id, email, items, subtotal, tax, tip, total, status, created_at, payment_intent_id, payment_status, currency) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 order_id,
                 email,
@@ -325,6 +359,9 @@ def save_order(email, items, subtotal, tax, tip, total):
                 total,
                 'pending',
                 datetime.now().isoformat(),
+                payment_intent_id,
+                payment_status,
+                currency,
             ),
         )
     return order_id
@@ -626,6 +663,110 @@ def get_menu():
     return jsonify(MENU)
 
 
+# ==================== PAYMENTS ====================
+
+def dollars_to_cents(amount):
+    """Convert dollar amount to cents (integer)"""
+    try:
+        if isinstance(amount, str):
+            amount = float(amount)
+        return int(round(amount * 100))
+    except (ValueError, TypeError):
+        return None
+
+
+@app.route('/api/payments/config', methods=['GET'])
+@login_required
+def get_payment_config():
+    """Get Stripe publishable key for frontend"""
+    if not STRIPE_PUBLISHABLE_KEY:
+        return jsonify({'error': 'Payment service not configured'}), 503
+    return jsonify({
+        'publishableKey': STRIPE_PUBLISHABLE_KEY,
+        'currency': STRIPE_DEFAULT_CURRENCY
+    })
+
+
+@app.route('/api/payments/create-intent', methods=['POST'])
+@role_required('customer', 'admin')
+def create_payment_intent():
+    """Create a Stripe PaymentIntent"""
+    if not STRIPE_SECRET_KEY:
+        return jsonify({'error': 'Card payments are not available right now.'}), 503
+
+    data = request.json or {}
+    items = data.get('items', [])
+    tip_value = float(data.get('tip', 0) or 0)
+    tax_value = float(data.get('tax', 0) or 0)
+
+    if not items:
+        return jsonify({'error': 'Cart is empty'}), 400
+
+    subtotal = sum(float(item.get('price', 0)) * int(item.get('quantity', 1)) for item in items)
+    total = subtotal + tax_value + tip_value
+    amount_cents = dollars_to_cents(total)
+    
+    if amount_cents is None or amount_cents <= 0:
+        return jsonify({'error': 'Invalid total amount'}), 400
+
+    user = get_session_user() or {}
+    metadata = {
+        'customer_email': user.get('email', ''),
+        'subtotal': str(subtotal),
+        'tax': str(tax_value),
+        'tip': str(tip_value)
+    }
+    
+    try:
+        intent = stripe.PaymentIntent.create(
+            amount=amount_cents,
+            currency=STRIPE_DEFAULT_CURRENCY,
+            automatic_payment_methods={'enabled': True},
+            metadata=metadata
+        )
+    except stripe.error.StripeError as e:
+        return jsonify({'error': str(e)}), 400
+
+    return jsonify({
+        'clientSecret': intent.client_secret,
+        'paymentIntentId': intent.id,
+        'amount': str(total),
+        'currency': intent.currency
+    })
+
+
+@app.route('/api/payments/webhook', methods=['POST'])
+def stripe_webhook():
+    """Handle Stripe webhook events"""
+    if not STRIPE_WEBHOOK_SECRET:
+        return jsonify({'error': 'Webhook secret not configured'}), 503
+    
+    payload = request.get_data()
+    sig_header = request.headers.get('Stripe-Signature')
+    
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError as e:
+        return jsonify({'error': 'Invalid payload'}), 400
+    except stripe.error.SignatureVerificationError as e:
+        return jsonify({'error': 'Invalid signature'}), 400
+
+    if event['type'] == 'payment_intent.succeeded':
+        payment_intent = event['data']['object']
+        payment_intent_id = payment_intent['id']
+        
+        # Update order payment status
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE orders SET payment_status = 'paid' WHERE payment_intent_id = %s",
+                (payment_intent_id,)
+            )
+    
+    return jsonify({'success': True})
+
+
 # ==================== ORDERS ====================
 
 @app.route('/api/orders', methods=['GET'])
@@ -658,6 +799,9 @@ def create_order():
     tax = data.get('tax', 0)
     tip = data.get('tip', 0)
     total = data.get('total', 0)
+    payment_intent_id = data.get('payment_intent_id')
+    payment_status = data.get('payment_status', 'pending')
+    currency = data.get('currency', 'usd')
 
     allergies = parse_allergies(user.get('allergies', ''))
     conflicts = detect_allergy_conflicts(items, allergies)
@@ -668,7 +812,24 @@ def create_order():
             'conflicts': conflicts
         }), 400
     
-    order_id = save_order(email, items, subtotal, tax, tip, total)
+    # If payment_intent_id is provided, verify it with Stripe
+    if payment_intent_id and STRIPE_SECRET_KEY:
+        try:
+            intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+            if intent.status != 'succeeded':
+                return jsonify({
+                    'success': False,
+                    'error': 'Payment not completed'
+                }), 400
+            payment_status = 'paid'
+            currency = intent.currency
+        except stripe.error.StripeError as e:
+            return jsonify({
+                'success': False,
+                'error': f'Payment verification failed: {str(e)}'
+            }), 400
+    
+    order_id = save_order(email, items, subtotal, tax, tip, total, payment_intent_id, payment_status, currency)
     
     return jsonify({
         'success': True,
