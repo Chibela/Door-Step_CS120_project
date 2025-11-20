@@ -209,16 +209,12 @@ def get_user_by_email(email):
     email = email.lower()
     with conn.cursor() as cur:
         cur.execute(
-<<<<<<< HEAD
-            "SELECT email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies, availability FROM users WHERE LOWER(email) = %s",
-=======
             """
             SELECT email, password, first_name, last_name, mobile, address, dob, sex,
                    registration_date, role, allergies, availability
             FROM users
             WHERE LOWER(email) = %s
             """,
->>>>>>> 6c4b7f45cde3e44e04a355d560b24bc68bcf6c46
             (email,),
         )
         row = cur.fetchone()
@@ -1138,4 +1134,3 @@ def get_time_slots():
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
