@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Check, MapPin, Briefcase, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar, Clock, User, Check, MapPin, Briefcase, AlertTriangle, StickyNote, Loader2, Phone } from 'lucide-react';
 import Header from '../../components/Admin/Header';
 import Sidebar from '../../components/Admin/Sidebar';
-import { getStaffList, getTimeSlots, createAppointment } from '../../services/api';
+import { getStaffList, getTimeSlots, createAppointment, checkScheduleConflicts } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 const BookAppointment = () => {
@@ -18,6 +18,8 @@ const BookAppointment = () => {
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(false);
+  const [conflicts, setConflicts] = useState([]);
+  const [checkingConflicts, setCheckingConflicts] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -45,6 +47,18 @@ const BookAppointment = () => {
     return `${String(h).padStart(2, '0')}:${minutes || '00'}`;
   };
 
+  const formatConflictWindow = (conflict) => {
+    if (conflict.start_time && conflict.end_time) {
+      const start = new Date(conflict.start_time);
+      const end = new Date(conflict.end_time);
+      return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      })}`;
+    }
+    return conflict.time_slot || 'Time TBD';
+  };
+
   const updateTimesFromSlot = (slot) => {
     const base = slotToTime(slot);
     setStartTime(base);
@@ -58,6 +72,19 @@ const BookAppointment = () => {
     } else {
       setEndTime('');
     }
+  };
+
+  const addHoursToTime = (timeString, hours = 2) => {
+    if (!timeString) return '';
+    const [h, m] = timeString.split(':').map((v) => parseInt(v, 10));
+    if (Number.isNaN(h)) return '';
+    const end = new Date();
+    end.setHours(h);
+    end.setMinutes(m || 0);
+    end.setSeconds(0);
+    end.setMilliseconds(0);
+    end.setHours(end.getHours() + hours);
+    return `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`;
   };
 
   const loadData = async () => {
@@ -106,12 +133,72 @@ const BookAppointment = () => {
       setPriority('normal');
       setStartTime('');
       setEndTime('');
+      setConflicts([]);
     } catch (error) {
-      showToast(error.response?.data?.error || 'Failed to book appointment', 'error');
+      const apiError = error.response?.data;
+      if (apiError?.conflicts) {
+        setConflicts(apiError.conflicts);
+      }
+      showToast(apiError?.error || 'Failed to book appointment', 'error');
     } finally {
       setLoading(false);
     }
   };
+
+  const selectedStaffMember = useMemo(
+    () => staff.find((s) => s.email === selectedStaff),
+    [staff, selectedStaff]
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    const runCheck = async () => {
+      if (!selectedStaff || !selectedDate || !(selectedTime || startTime)) {
+        setConflicts([]);
+        setCheckingConflicts(false);
+        return;
+      }
+      const derivedStart = startTime || slotToTime(selectedTime);
+      if (!derivedStart) {
+        setConflicts([]);
+        setCheckingConflicts(false);
+        return;
+      }
+      const derivedEnd = endTime || addHoursToTime(derivedStart);
+      if (!derivedEnd) {
+        setConflicts([]);
+        setCheckingConflicts(false);
+        return;
+      }
+      const startIso = `${selectedDate}T${derivedStart}:00`;
+      const endIso = `${selectedDate}T${derivedEnd}:00`;
+      setCheckingConflicts(true);
+      try {
+        const data = await checkScheduleConflicts({
+          staff_email: selectedStaff,
+          date: selectedDate,
+          time_slot: selectedTime,
+          start_time: startIso,
+          end_time: endIso,
+        });
+        if (!ignore) {
+          setConflicts(data.conflicts || []);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setConflicts([]);
+        }
+      } finally {
+        if (!ignore) {
+          setCheckingConflicts(false);
+        }
+      }
+    };
+    runCheck();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedStaff, selectedDate, selectedTime, startTime, endTime]);
 
   // Get minimum date (today)
   const today = new Date().toISOString().split('T')[0];
@@ -147,6 +234,29 @@ const BookAppointment = () => {
                   </select>
                 </div>
               </div>
+
+              {selectedStaffMember && (
+                <div className="bg-dust-grey/20 border border-dust-grey rounded-xl p-4 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-sm text-text-dark">
+                    <User className="w-4 h-4 text-primary" />
+                    <span>{selectedStaffMember.email}</span>
+                  </div>
+                  {selectedStaffMember.mobile && (
+                    <div className="flex items-center gap-2 text-sm text-text-dark">
+                      <Phone className="w-4 h-4 text-primary" />
+                      <span>{selectedStaffMember.mobile}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 text-sm text-text-dark">
+                    <StickyNote className="w-4 h-4 text-primary" />
+                    <span>
+                      {selectedStaffMember.availability?.trim()
+                        ? `Availability: ${selectedStaffMember.availability}`
+                        : 'No availability provided'}
+                    </span>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-text-dark mb-2">
@@ -210,6 +320,37 @@ const BookAppointment = () => {
                   />
                 </div>
               </div>
+
+              {(selectedStaffMember && selectedDate && (selectedTime || startTime)) && (
+                <div className="space-y-3">
+                  {checkingConflicts ? (
+                    <div className="flex items-center gap-2 text-sm text-text-light bg-dust-grey/30 rounded-xl px-4 py-3">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Checking overlapping shifts…
+                    </div>
+                  ) : conflicts.length > 0 ? (
+                    <div className="border border-red-200 bg-red-50 rounded-xl p-4 space-y-2">
+                      <div className="flex items-center gap-2 text-red-600 font-semibold">
+                        <AlertTriangle className="w-4 h-4" />
+                        <span>Conflict with existing shifts</span>
+                      </div>
+                      <ul className="list-disc pl-5 text-sm text-red-700 space-y-1">
+                        {conflicts.map((conflict) => (
+                          <li key={conflict.appointment_id}>
+                            {conflict.date ? new Date(conflict.date).toLocaleDateString() : 'Date TBD'} •{' '}
+                            {formatConflictWindow(conflict)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-100 rounded-xl px-4 py-3">
+                      <Check className="w-4 h-4" />
+                      No conflicts detected for this shift.
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>

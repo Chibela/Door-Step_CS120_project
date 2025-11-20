@@ -31,6 +31,16 @@ export const getCurrentUser = async () => {
   return response.data;
 };
 
+export const getCustomerProfile = async () => {
+  const response = await api.get('/customer/profile');
+  return response.data;
+};
+
+export const updateCustomerProfile = async (profileData) => {
+  const response = await api.put('/customer/profile', profileData);
+  return response.data;
+};
+
 // Menu
 export const getMenu = async () => {
   const response = await api.get('/menu');
@@ -104,6 +114,11 @@ export const updateStaffProfile = async (profileData) => {
 
 export const getTimeSlots = async () => {
   const response = await api.get('/time-slots');
+  return response.data;
+};
+
+export const checkScheduleConflicts = async (params) => {
+  const response = await api.get('/schedules/conflicts', { params });
   return response.data;
 };
 

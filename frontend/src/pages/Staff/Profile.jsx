@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Mail, Phone, MapPin, Calendar, UserCircle, AlertTriangle } from 'lucide-react';
+import { Mail, Phone, MapPin, Calendar, UserCircle, AlertTriangle, StickyNote } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { getStaffProfile, updateStaffProfile } from '../../services/api';
@@ -40,7 +40,11 @@ const StaffProfile = () => {
     e.preventDefault();
     setSaving(true);
     try {
-      await updateStaffProfile(formData);
+      const payload = { ...formData };
+      if (!payload.password) {
+        delete payload.password;
+      }
+      await updateStaffProfile(payload);
       showToast('Profile updated', 'success');
       setEditing(false);
       loadUser();
@@ -191,6 +195,20 @@ const StaffProfile = () => {
                       <p className="text-xs text-text-light mt-1">We’ll warn you when menu items contain these ingredients.</p>
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-text-light mb-2">Availability</label>
+                      <textarea
+                        name="availability"
+                        value={formData.availability || ''}
+                        onChange={handleChange}
+                        rows={3}
+                        placeholder="ex: Weekdays 8a-4p, Sat events OK"
+                        className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      />
+                      <p className="text-xs text-text-light mt-1">
+                        Share any recurring windows or blackout dates so admins can schedule accurately.
+                      </p>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-text-light mb-2">Change Password</label>
                       <input
                         type="password"
@@ -256,6 +274,15 @@ const StaffProfile = () => {
                         <p className="text-sm text-red-500">Allergies</p>
                         <p className="font-semibold text-text-dark">
                           {user.allergies?.trim() ? user.allergies : 'None provided'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-4 bg-dust-grey/30 rounded-xl hover:bg-dust-grey/50 transition-colors md:col-span-2">
+                      <StickyNote className="w-5 h-5 text-text-light" />
+                      <div>
+                        <p className="text-sm text-text-light">Availability</p>
+                        <p className="font-semibold text-text-dark">
+                          {user.availability?.trim() ? user.availability : 'Not provided'}
                         </p>
                       </div>
                     </div>

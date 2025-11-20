@@ -25,24 +25,29 @@ conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
 conn.autocommit = True
 
 
-def ensure_users_allergies_column():
+def ensure_users_optional_columns():
+    columns = {
+        'allergies': "ALTER TABLE users ADD COLUMN allergies TEXT DEFAULT ''",
+        'availability': "ALTER TABLE users ADD COLUMN availability TEXT DEFAULT ''",
+    }
     try:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'users' AND column_name = 'allergies'
+                WHERE table_name = 'users'
                 """
             )
-            exists = cur.fetchone()
-        if not exists:
-            with conn.cursor() as cur:
-                cur.execute("ALTER TABLE users ADD COLUMN allergies TEXT DEFAULT ''")
+            existing = {row['column_name'] for row in cur.fetchall()}
+        for column, statement in columns.items():
+            if column not in existing:
+                with conn.cursor() as cur:
+                    cur.execute(statement)
     except Exception as e:
-        print(f"Warning: unable to ensure allergies column: {e}")
+        print(f"Warning: unable to ensure users optional columns: {e}")
 
 
-ensure_users_allergies_column()
+ensure_users_optional_columns()
 
 
 def ensure_schedules_columns():
@@ -188,7 +193,8 @@ def sanitize_user(user):
         'dob': user.get('dob', ''),
         'sex': user.get('sex', ''),
         'role': user.get('role', ''),
-        'allergies': user.get('allergies', '')
+        'allergies': user.get('allergies', ''),
+        'availability': user.get('availability', '')
     }
 
 
@@ -273,10 +279,10 @@ def update_order_record(order_id, updates):
     return dict(row)
 
 
-def save_user(email, password, first_name, last_name, mobile, address, dob, sex, role='customer', allergies=''):
+def save_user(email, password, first_name, last_name, mobile, address, dob, sex, role='customer', allergies='', availability=''):
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO users (email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO users (email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies, availability) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 email.lower(),
                 generate_password_hash(password),
@@ -289,6 +295,7 @@ def save_user(email, password, first_name, last_name, mobile, address, dob, sex,
                 datetime.now().isoformat(),
                 role,
                 allergies,
+                availability,
             ),
         )
 
@@ -427,6 +434,13 @@ def overlap(a_start, a_end, b_start, b_end):
 
 
 def check_schedule_conflicts(staff_email, start_time, end_time, appointment_id=None):
+    requested_start = start_time
+    requested_end = end_time
+    if not requested_end and requested_start:
+        try:
+            requested_end = (datetime.fromisoformat(requested_start) + timedelta(hours=2)).isoformat()
+        except Exception:
+            requested_end = None
     with conn.cursor() as cur:
         cur.execute(
             """
@@ -443,8 +457,19 @@ def check_schedule_conflicts(staff_email, start_time, end_time, appointment_id=N
             continue
         existing_start = row.get('start_time') or parse_time_string(row.get('date'), row.get('time_slot'))
         existing_end = row.get('end_time')
-        if overlap(start_time, end_time, existing_start, existing_end):
-            conflicts.append(row['appointment_id'])
+        if not existing_end and existing_start:
+            try:
+                existing_end = (datetime.fromisoformat(existing_start) + timedelta(hours=2)).isoformat()
+            except Exception:
+                existing_end = None
+        if overlap(requested_start, requested_end, existing_start, existing_end):
+            conflicts.append({
+                'appointment_id': row['appointment_id'],
+                'date': row.get('date'),
+                'time_slot': row.get('time_slot'),
+                'start_time': existing_start,
+                'end_time': existing_end
+            })
     return conflicts
 
 
@@ -519,7 +544,8 @@ def signup():
         data['dob'].strip(),
         data['sex'].strip(),
         role='customer',
-        allergies=data.get('allergies', '').strip()
+        allergies=data.get('allergies', '').strip(),
+        availability=data.get('availability', '').strip()
     )
 
     session['user_id'] = email
@@ -543,6 +569,40 @@ def get_current_user():
     if not user:
         return jsonify({'error': 'User not found'}), 404
     return jsonify(sanitize_user(user))
+
+
+@app.route('/api/customer/profile', methods=['GET', 'PUT'])
+@login_required
+def customer_profile():
+    """Customer self-service profile"""
+    role = session.get('role')
+    if role not in ('customer', 'admin'):
+        return jsonify({'error': 'Forbidden'}), 403
+
+    email = session.get('user_id')
+    user = get_user_by_email(email)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    if request.method == 'GET':
+        return jsonify(sanitize_user(user))
+
+    data = request.json or {}
+    updates = {
+        'first_name': data.get('first_name'),
+        'last_name': data.get('last_name'),
+        'mobile': data.get('mobile'),
+        'address': data.get('address'),
+        'dob': data.get('dob'),
+        'sex': data.get('sex'),
+        'password': data.get('password'),
+        'allergies': data.get('allergies'),
+        'availability': data.get('availability'),
+    }
+    success = update_user_record(email, updates)
+    if not success:
+        return jsonify({'error': 'Unable to update profile'}), 400
+    return jsonify({'success': True, 'user': sanitize_user(get_user_by_email(email))})
 
 
 # ==================== MENU ====================
@@ -700,6 +760,33 @@ def create_appointment():
         'success': True,
         'appointment_id': appointment_id
     })
+# Preview conflicts endpoint
+@app.route('/api/schedules/conflicts', methods=['GET'])
+@role_required('admin')
+def preview_conflicts():
+    staff_email = (request.args.get('staff_email') or '').strip().lower()
+    date = (request.args.get('date') or '').strip()
+    time_slot = (request.args.get('time_slot') or '').strip()
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+    appointment_id = request.args.get('appointment_id')
+
+    if not staff_email:
+        return jsonify({'conflicts': []})
+
+    iso_start = start_time or parse_time_string(date, time_slot)
+    iso_end = end_time
+    if not iso_end and iso_start:
+        try:
+            iso_end = (datetime.fromisoformat(iso_start) + timedelta(hours=2)).isoformat()
+        except Exception:
+            iso_end = None
+
+    if not iso_start or not iso_end:
+        return jsonify({'conflicts': []})
+
+    conflicts = check_schedule_conflicts(staff_email, iso_start, iso_end, appointment_id=appointment_id)
+    return jsonify({'conflicts': conflicts})
 
 
 def update_schedule_record(appointment_id, updates):
@@ -909,7 +996,8 @@ def create_staff_user():
         data.get('dob', ''),
         data.get('sex', ''),
         role='staff',
-        allergies=data.get('allergies', '').strip()
+        allergies=data.get('allergies', '').strip(),
+        availability=data.get('availability', '').strip()
     )
 
     user = get_user_by_email(email)
@@ -929,7 +1017,8 @@ def update_staff_user(email):
         'dob': data.get('dob'),
         'sex': data.get('sex'),
         'password': data.get('password'),
-        'allergies': data.get('allergies')
+        'allergies': data.get('allergies'),
+        'availability': data.get('availability')
     }
     success = update_user_record(email, updates)
     if not success:
@@ -959,7 +1048,8 @@ def staff_profile():
         'dob': data.get('dob'),
         'sex': data.get('sex'),
         'password': data.get('password'),
-        'allergies': data.get('allergies')
+        'allergies': data.get('allergies'),
+        'availability': data.get('availability')
     }
     success = update_user_record(email, updates)
     if not success:

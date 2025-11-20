@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Mail, Phone, MapPin, Calendar, AlertTriangle } from 'lucide-react';
+import { Plus, Users, Mail, Phone, MapPin, Calendar, AlertTriangle, StickyNote } from 'lucide-react';
 import Header from '../../components/Admin/Header';
 import Sidebar from '../../components/Admin/Sidebar';
 import { getStaffList, createStaff, updateStaff } from '../../services/api';
@@ -15,6 +15,7 @@ const initialFormState = {
   dob: '',
   sex: '',
   allergies: '',
+  availability: '',
 };
 
 const AdminStaff = () => {
@@ -69,11 +70,20 @@ const AdminStaff = () => {
     e.preventDefault();
     setSaving(true);
     try {
+      const payload = { ...formData };
       if (editingStaff) {
-        await updateStaff(editingStaff.email, formData);
+        if (!payload.password) {
+          delete payload.password;
+        }
+      } else if (!payload.password) {
+        showToast('Password is required when creating a new staff member', 'warning');
+        return;
+      }
+      if (editingStaff) {
+        await updateStaff(editingStaff.email, payload);
         showToast('Staff updated successfully', 'success');
       } else {
-        await createStaff(formData);
+        await createStaff(payload);
         showToast('Staff added successfully', 'success');
       }
       handleCloseForm();
@@ -178,6 +188,12 @@ const AdminStaff = () => {
                       <div className="flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-red-500" />
                         <span className="text-red-500">Allergies: {member.allergies}</span>
+                      </div>
+                    )}
+                    {member.availability && (
+                      <div className="flex items-center gap-2">
+                        <StickyNote className="w-4 h-4 text-primary" />
+                        <span>Availability: {member.availability}</span>
                       </div>
                     )}
                   </div>
@@ -311,6 +327,18 @@ const AdminStaff = () => {
                     <p className="text-xs text-text-light mt-1">
                       Helps flag risky menu items when this staff member places an order.
                     </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-light mb-2">Availability (optional)</label>
+                    <textarea
+                      name="availability"
+                      value={formData.availability}
+                      onChange={handleChange}
+                      rows={3}
+                      placeholder="e.g., Weekdays 8a-4p, no Sundays"
+                      className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    />
+                    <p className="text-xs text-text-light mt-1">Share recurring shift windows or blackout dates.</p>
                   </div>
                   <div className="flex justify-end gap-3">
                     <button
