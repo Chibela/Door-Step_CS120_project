@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft } from 'lucide-react';
+import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, AlertCircle } from 'lucide-react';
 import Header from '../../components/Customer/Header';
 import Sidebar from '../../components/Customer/Sidebar';
-import { createOrder } from '../../services/api';
+import { createOrder, getCustomerProfile } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 const CustomerCart = () => {
   const [cart, setCart] = useState([]);
+  const [userAllergies, setUserAllergies] = useState([]);
   const [tip, setTip] = useState(0);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -15,7 +16,24 @@ const CustomerCart = () => {
 
   useEffect(() => {
     loadCart();
+    loadUserAllergies();
   }, []);
+
+  const loadUserAllergies = async () => {
+    try {
+      const userData = await getCustomerProfile();
+      if (userData && userData.allergies) {
+        const allergies = String(userData.allergies)
+          .split(',')
+          .map(a => a.trim().toLowerCase())
+          .filter(a => a);
+        setUserAllergies(allergies);
+      }
+    } catch (err) {
+      // ignore if not logged in or error
+      console.error('Unable to load user allergies', err?.message || err);
+    }
+  };
 
   const loadCart = () => {
     const savedCart = JSON.parse(localStorage.getItem('cart') || '[]');
@@ -104,13 +122,43 @@ const CustomerCart = () => {
             ) : (
               <>
                 <div className="space-y-4 mb-6">
-                  {cart.map((item) => (
-                    <div key={item.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  {cart.map((item) => {
+                    const itemAllergies = (item.allergies || []).map(a => String(a).toLowerCase());
+                    const conflicts = userAllergies.length > 0 && itemAllergies.length > 0
+                      ? itemAllergies.filter(a => userAllergies.includes(a))
+                      : [];
+                    return (
+                    <div key={item.id} className={`flex items-center justify-between p-4 ${conflicts.length ? 'bg-red-50 border border-red-200' : 'bg-gray-50'} rounded-xl`}>
                       <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-gray-200 rounded-lg"></div>
+                        <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden flex-shrink-0 relative">
+                          {item.image ? (
+                            <img 
+                              src={item.image} 
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                const fallback = e.target.nextElementSibling;
+                                if (fallback) fallback.style.display = 'flex';
+                              }}
+                            />
+                          ) : null}
+                          <div 
+                            className="image-fallback w-full h-full flex items-center justify-center absolute inset-0"
+                            style={{ display: (item.image && item.image.trim()) ? 'none' : 'flex' }}
+                          >
+                            <span className="text-6xl">🍔</span>
+                          </div>
+                        </div>
                         <div>
                           <h3 className="font-semibold text-gray-900">{item.name}</h3>
                           <p className="text-sm text-gray-500">${item.price.toFixed(2)} each</p>
+                          {conflicts.length > 0 && (
+                            <div className="mt-1 inline-flex items-center gap-2 px-2 py-1 rounded bg-red-100 text-red-700 text-xs">
+                              <AlertCircle className="w-3 h-3" />
+                              <span>Contains: {conflicts.map(c => c.charAt(0).toUpperCase() + c.slice(1)).join(', ')}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
@@ -140,7 +188,8 @@ const CustomerCart = () => {
                         </button>
                       </div>
                     </div>
-                  ))}
+                  )
+                })}
                 </div>
 
                 <div className="border-t pt-6 space-y-4">

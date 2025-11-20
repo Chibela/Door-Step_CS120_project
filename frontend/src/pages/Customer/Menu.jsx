@@ -160,6 +160,12 @@ const MenuCard = ({ item, onAddToCart }) => {
           <span className="text-sm text-text-light">{item.rating.toFixed(1)}</span>
         </div>
       )}
+      {item.allergies && item.allergies.length > 0 && (
+        <div className="mb-3 text-xs text-gray-600">
+          <p className="font-semibold mb-1">May contain:</p>
+          <p>{item.allergies.map(a => a.charAt(0).toUpperCase() + a.slice(1)).join(', ')}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-4">
         <span className="text-2xl font-bold text-primary">${item.price.toFixed(2)}</span>
         <div className="flex items-center gap-2">

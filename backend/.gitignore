@@ -11,3 +11,8 @@ ENV/
 *.log
 data/*.csv.bak
 
+# Environment variables
+.env
+.env.local
+.env.development
+.env.production

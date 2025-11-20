@@ -204,7 +204,7 @@ def get_user_by_email(email):
     email = email.lower()
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role FROM users WHERE LOWER(email) = %s",
+            "SELECT email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies, availability FROM users WHERE LOWER(email) = %s",
             (email,),
         )
         row = cur.fetchone()
