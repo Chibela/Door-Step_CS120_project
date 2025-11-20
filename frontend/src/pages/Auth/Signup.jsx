@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, Phone, MapPin, Calendar, UserCircle } from 'lucide-react';
 import logo from '../../assets/logo.webp';
 import { AuthContext } from '../../context/AuthContext';
-import { signup } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import { signup as signupApi } from '../../services/api';
 
 const Signup = () => {
   const [formData, setFormData] = useState({
@@ -33,14 +33,29 @@ const Signup = () => {
     setLoading(true);
 
     try {
-      const response = await signup(formData);
-      if (response.success) {
-        setUser(response.user);
-        showToast('Account created successfully!', 'success');
-        navigate('/customer/menu');
+      const { email, password, first_name, last_name, mobile, address, dob, sex } = formData;
+
+      const response = await signupApi({
+        email,
+        password,
+        first_name,
+        last_name,
+        mobile,
+        address,
+        dob,
+        sex,
+      });
+
+      if (!response?.success) {
+        throw new Error(response?.error || 'Signup failed');
       }
+
+      const appUser = response.user;
+      setUser(appUser);
+      showToast('Account created successfully!', 'success');
+      navigate('/customer/menu');
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Signup failed';
+      const errorMsg = err.message || 'Signup failed';
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {

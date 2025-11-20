@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { getCurrentUser } from '../services/api';
+import { getCurrentUser, logout as logoutApi } from '../services/api';
 
 export const AuthContext = createContext();
 
@@ -13,8 +13,8 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuth = async () => {
     try {
-      const userData = await getCurrentUser();
-      setUser(userData);
+      const backendUser = await getCurrentUser();
+      setUser(backendUser);
     } catch (error) {
       setUser(null);
     } finally {
@@ -26,8 +26,12 @@ export const AuthProvider = ({ children }) => {
     setUser(userData);
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      await logoutApi();
+    } finally {
+      setUser(null);
+    }
   };
 
   return (

@@ -3,8 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn } from 'lucide-react';
 import logo from '../../assets/logo.webp';
 import { AuthContext } from '../../context/AuthContext';
-import { login } from '../../services/api';
 import { useToast } from '../../components/Toast';
+import { login as loginApi } from '../../services/api';
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -21,21 +21,24 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const response = await login(email, password);
-      if (response.success) {
-        setUser(response.user);
-        showToast('Login successful!', 'success');
-        // Redirect based on role
-        if (response.user.role === 'admin') {
-          navigate('/admin/dashboard');
-        } else if (response.user.role === 'staff') {
-          navigate('/staff/schedule');
-        } else {
-          navigate('/customer/menu');
-        }
+      const response = await loginApi(email, password);
+      if (!response?.success) {
+        throw new Error(response?.error || 'Login failed');
+      }
+
+      const appUser = response.user;
+      setUser(appUser);
+      showToast('Login successful!', 'success');
+
+      if (appUser.role === 'admin') {
+        navigate('/admin/dashboard');
+      } else if (appUser.role === 'staff') {
+        navigate('/staff/schedule');
+      } else {
+        navigate('/customer/menu');
       }
     } catch (err) {
-      const errorMsg = err.response?.data?.error || 'Login failed';
+      const errorMsg = err.message || 'Login failed';
       setError(errorMsg);
       showToast(errorMsg, 'error');
     } finally {
