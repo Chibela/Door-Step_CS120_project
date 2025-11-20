@@ -10,61 +10,19 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import os
 import json
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation
 from collections import Counter
 from functools import wraps
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
-import stripe
 
 load_dotenv(".env.local")
 load_dotenv()
 
-def ensure_pooler_params(url_value):
-    """Supabase pooler requires ?pgbouncer=true for transaction mode to avoid session connection limits."""
-    if not url_value:
-        return url_value
-    parsed = urlparse(url_value)
-    if not parsed.hostname:
-        return url_value
-
-    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-    changed = False
-
-    # Always enforce SSL
-    if query.get('sslmode', '').lower() not in {'require', 'verify-ca', 'verify-full'}:
-        query['sslmode'] = 'require'
-        changed = True
-
-    if parsed.hostname.endswith('.pooler.supabase.com'):
-        if query.get('pgbouncer', '').lower() != 'true':
-            query['pgbouncer'] = 'true'
-            changed = True
-
-    if not changed:
-        return url_value
-
-    new_query = urlencode(query)
-    rebuilt = urlunparse(parsed._replace(query=new_query))
-    print("[database] adjusted SUPABASE_DB_URL to include pgbouncer/ssl parameters")
-    return rebuilt
-
-
-SUPABASE_DB_URL = ensure_pooler_params(os.getenv("SUPABASE_DB_URL"))
+SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 
 conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
 conn.autocommit = True
-
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY")
-STRIPE_DEFAULT_CURRENCY = os.getenv("STRIPE_DEFAULT_CURRENCY", "usd")
-
-if STRIPE_SECRET_KEY:
-    stripe.api_key = STRIPE_SECRET_KEY
-else:
-    stripe.api_key = None
 
 
 def ensure_users_optional_columns():
@@ -119,32 +77,6 @@ def ensure_schedules_columns():
 
 
 ensure_schedules_columns()
-
-
-def ensure_orders_payment_columns():
-    columns = {
-        'payment_intent_id': "ALTER TABLE orders ADD COLUMN payment_intent_id TEXT",
-        'payment_status': "ALTER TABLE orders ADD COLUMN payment_status TEXT DEFAULT 'pending'",
-        'currency': "ALTER TABLE orders ADD COLUMN currency TEXT DEFAULT 'usd'"
-    }
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT column_name FROM information_schema.columns
-                WHERE table_name = 'orders'
-                """
-            )
-            existing = {row['column_name'] for row in cur.fetchall()}
-        for column, statement in columns.items():
-            if column not in existing:
-                with conn.cursor() as cur:
-                    cur.execute(statement)
-    except Exception as e:
-        print(f"Warning: unable to ensure orders payment columns: {e}")
-
-
-ensure_orders_payment_columns()
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-me")
@@ -203,55 +135,6 @@ MENU = load_menu_from_cache()
 
 TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM']
 
-MONEY_QUANTIZER = Decimal('0.01')
-
-
-def to_decimal(value, default=Decimal('0.00')):
-    if value is None:
-        return default
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, TypeError, ValueError):
-        return default
-
-
-def quantize_money(amount):
-    return amount.quantize(MONEY_QUANTIZER)
-
-
-def dollars_to_cents(amount):
-    if amount is None:
-        return None
-    return int((amount * Decimal('100')).to_integral_value())
-
-
-def calculate_subtotal_from_items(items):
-    """Calculate subtotal using server-side pricing as best effort."""
-    global MENU
-    if not MENU:
-        MENU = load_menu_from_cache()
-    price_map = {str(item.get('id')): to_decimal(item.get('price'), Decimal('0')) for item in MENU}
-    subtotal = Decimal('0')
-    for entry in items:
-        item_id = str(entry.get('id'))
-        quantity = to_decimal(entry.get('quantity'), Decimal('0'))
-        if quantity <= 0:
-            continue
-        price = price_map.get(item_id)
-        if price is None or price == Decimal('0'):
-            price = to_decimal(entry.get('price'), Decimal('0'))
-        subtotal += price * quantity
-    return quantize_money(subtotal)
-
-
-def compute_order_totals(items, tax_value, tip_value):
-    subtotal = calculate_subtotal_from_items(items)
-    tax_dec = quantize_money(to_decimal(tax_value, Decimal('0')))
-    tip_dec = quantize_money(to_decimal(tip_value, Decimal('0')))
-    total = quantize_money(subtotal + tax_dec + tip_dec)
-    return subtotal, tax_dec, tip_dec, total
-
-
 ALLERGEN_KEYWORDS = {
     'dairy': ['dairy', 'milk', 'cheese', 'butter', 'cream', 'yogurt'],
     'nuts': ['nut', 'nuts', 'peanut', 'peanuts', 'almond', 'walnut', 'cashew', 'pecan', 'hazelnut', 'pistachio'],
@@ -284,7 +167,7 @@ def read_users():
 def read_orders():
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT order_id, email, items, subtotal, tax, tip, total, status, created_at, payment_intent_id, payment_status, currency FROM orders"
+            "SELECT order_id, email, items, subtotal, tax, tip, total, status, created_at FROM orders"
         )
         rows = cur.fetchall()
     return [dict(row) for row in rows]
@@ -397,11 +280,7 @@ def update_order_record(order_id, updates):
         set_clauses.append(f"{key} = %s")
         params.append(value)
     params.append(order_id)
-    query = (
-        "UPDATE orders SET {fields} WHERE order_id = %s RETURNING "
-        "order_id, email, items, subtotal, tax, tip, total, status, created_at, "
-        "payment_intent_id, payment_status, currency"
-    ).format(fields=', '.join(set_clauses))
+    query = f"UPDATE orders SET {', '.join(set_clauses)} WHERE order_id = %s RETURNING order_id, email, items, subtotal, tax, tip, total, status, created_at"
     with conn.cursor() as cur:
         cur.execute(query, tuple(params))
         row = cur.fetchone()
@@ -431,15 +310,11 @@ def save_user(email, password, first_name, last_name, mobile, address, dob, sex,
         )
 
 
-def save_order(email, items, subtotal, tax, tip, total, status='pending', payment_intent_id=None, payment_status='pending', currency='usd'):
+def save_order(email, items, subtotal, tax, tip, total):
     order_id = f"ORD{int(datetime.now().timestamp() * 1000)}"
     with conn.cursor() as cur:
         cur.execute(
-            """
-            INSERT INTO orders
-            (order_id, email, items, subtotal, tax, tip, total, status, created_at, payment_intent_id, payment_status, currency)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
+            "INSERT INTO orders (order_id, email, items, subtotal, tax, tip, total, status, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 order_id,
                 email,
@@ -448,11 +323,8 @@ def save_order(email, items, subtotal, tax, tip, total, status='pending', paymen
                 tax,
                 tip,
                 total,
-                status,
+                'pending',
                 datetime.now().isoformat(),
-                payment_intent_id,
-                payment_status,
-                currency,
             ),
         )
     return order_id
@@ -756,63 +628,6 @@ def get_menu():
 
 # ==================== ORDERS ====================
 
-@app.route('/api/payments/config', methods=['GET'])
-@login_required
-def payment_config():
-    """Expose publishable key to frontend if Stripe is configured."""
-    if not STRIPE_PUBLISHABLE_KEY:
-        return jsonify({'enabled': False})
-    return jsonify({
-        'enabled': True,
-        'publishableKey': STRIPE_PUBLISHABLE_KEY,
-        'currency': STRIPE_DEFAULT_CURRENCY
-    })
-
-
-@app.route('/api/payments/create-intent', methods=['POST'])
-@role_required('customer', 'admin')
-def create_payment_intent():
-    if not STRIPE_SECRET_KEY:
-        return jsonify({'error': 'Card payments are not available right now.'}), 503
-
-    data = request.json or {}
-    items = data.get('items', [])
-    tip_value = data.get('tip', 0)
-    tax_value = data.get('tax', 0)
-
-    if not items:
-        return jsonify({'error': 'Cart is empty'}), 400
-
-    subtotal_dec, tax_dec, tip_dec, total_dec = compute_order_totals(items, tax_value, tip_value)
-    amount_cents = dollars_to_cents(total_dec)
-    if amount_cents is None or amount_cents <= 0:
-        return jsonify({'error': 'Invalid total amount'}), 400
-
-    user = get_session_user() or {}
-    metadata = {
-        'customer_email': user.get('email', ''),
-        'subtotal': str(subtotal_dec),
-        'tax': str(tax_dec),
-        'tip': str(tip_dec)
-    }
-    try:
-        intent = stripe.PaymentIntent.create(
-            amount=amount_cents,
-            currency=STRIPE_DEFAULT_CURRENCY,
-            automatic_payment_methods={'enabled': True},
-            metadata=metadata
-        )
-    except stripe.error.StripeError as e:
-        return jsonify({'error': str(e)}), 400
-
-    return jsonify({
-        'clientSecret': intent.get('client_secret'),
-        'paymentIntentId': intent.get('id'),
-        'amount': str(total_dec),
-        'currency': intent.get('currency', STRIPE_DEFAULT_CURRENCY)
-    })
-
-
 @app.route('/api/orders', methods=['GET'])
 @login_required
 def get_orders():
@@ -839,45 +654,10 @@ def create_order():
     user = get_session_user() or {}
     email = user.get('email', '')
     items = data.get('items', [])
-    tip_value = data.get('tip', 0)
-    tax_value = data.get('tax', 0)
-    currency = (data.get('currency') or STRIPE_DEFAULT_CURRENCY).lower()
-    payment_intent_id = data.get('payment_intent_id')
-
-    if not items:
-        return jsonify({'success': False, 'error': 'Cart is empty'}), 400
-
-    subtotal_dec, tax_dec, tip_dec, total_dec = compute_order_totals(items, tax_value, tip_value)
-
-    payment_status = data.get('payment_status', 'pending')
-    require_payment = bool(STRIPE_SECRET_KEY) and user.get('role') == 'customer'
-
-    if payment_intent_id:
-        if not STRIPE_SECRET_KEY:
-            return jsonify({'success': False, 'error': 'Payments are not enabled on the server'}), 503
-        try:
-            existing = None
-            with conn.cursor() as cur:
-                cur.execute("SELECT order_id FROM orders WHERE payment_intent_id = %s", (payment_intent_id,))
-                existing = cur.fetchone()
-            if existing:
-                return jsonify({'success': False, 'error': 'This payment has already been processed.'}), 400
-
-            intent = stripe.PaymentIntent.retrieve(payment_intent_id)
-        except stripe.error.StripeError as e:
-            return jsonify({'success': False, 'error': f'Unable to verify payment: {str(e)}'}), 400
-
-        if intent.get('status') != 'succeeded':
-            return jsonify({'success': False, 'error': 'Payment has not completed yet.'}), 400
-
-        amount_cents = dollars_to_cents(total_dec) or 0
-        if intent.get('amount_received') and int(intent['amount_received']) < amount_cents:
-            return jsonify({'success': False, 'error': 'Payment amount does not match order total.'}), 400
-
-        currency = intent.get('currency', currency)
-        payment_status = intent.get('status', 'succeeded')
-    elif require_payment:
-        return jsonify({'success': False, 'error': 'Payment is required before placing an order.'}), 400
+    subtotal = data.get('subtotal', 0)
+    tax = data.get('tax', 0)
+    tip = data.get('tip', 0)
+    total = data.get('total', 0)
 
     allergies = parse_allergies(user.get('allergies', ''))
     conflicts = detect_allergy_conflicts(items, allergies)
@@ -888,17 +668,7 @@ def create_order():
             'conflicts': conflicts
         }), 400
     
-    order_id = save_order(
-        email,
-        items,
-        subtotal_dec,
-        tax_dec,
-        tip_dec,
-        total_dec,
-        payment_intent_id=payment_intent_id,
-        payment_status=payment_status,
-        currency=currency
-    )
+    order_id = save_order(email, items, subtotal, tax, tip, total)
     
     return jsonify({
         'success': True,
@@ -1362,7 +1132,6 @@ def get_time_slots():
     return jsonify(TIME_SLOTS)
 
 
-# ==================== STRIPE PAYMENT ====================
-
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
+
