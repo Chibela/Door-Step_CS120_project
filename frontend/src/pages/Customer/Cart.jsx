@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowLeft, AlertCircle } from 'lucide-react';
 import Header from '../../components/Customer/Header';
 import Sidebar from '../../components/Customer/Sidebar';
-import { createOrder, getCustomerProfile } from '../../services/api';
+import CheckoutModal from '../../components/CheckoutModal';
+import { getCustomerProfile } from '../../services/api';
 import { useToast } from '../../components/Toast';
 
 const CustomerCart = () => {
@@ -11,12 +14,20 @@ const CustomerCart = () => {
   const [userAllergies, setUserAllergies] = useState([]);
   const [tip, setTip] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [stripePromise, setStripePromise] = useState(null);
+  const [userEmail, setUserEmail] = useState('');
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   useEffect(() => {
     loadCart();
     loadUserAllergies();
+    // Load Stripe publishable key
+    const stripeKey = import.meta.env.VITE_STRIPE_PUBLIC_KEY;
+    if (stripeKey) {
+      setStripePromise(loadStripe(stripeKey));
+    }
   }, []);
 
   const loadUserAllergies = async () => {
@@ -28,6 +39,9 @@ const CustomerCart = () => {
           .map(a => a.trim().toLowerCase())
           .filter(a => a);
         setUserAllergies(allergies);
+      }
+      if (userData && userData.email) {
+        setUserEmail(userData.email);
       }
     } catch (err) {
       // ignore if not logged in or error
@@ -72,31 +86,19 @@ const CustomerCart = () => {
       return;
     }
 
-    setLoading(true);
-    try {
-      await createOrder({
-        items: cart,
-        subtotal: subtotal.toFixed(2),
-        tax: tax.toFixed(2),
-        tip: tip.toFixed(2),
-        total: total.toFixed(2),
-      });
-      localStorage.removeItem('cart');
-      showToast('Order placed successfully!', 'success');
-      navigate('/customer/orders');
-    } catch (error) {
-      const conflicts = error.response?.data?.conflicts;
-      if (conflicts?.length) {
-        const details = conflicts
-          .map(conflict => `${conflict.item}: ${conflict.allergies.join(', ')}`)
-          .join('; ');
-        showToast(`Allergy alert – remove or replace these items: ${details}`, 'warning');
-      } else {
-        showToast(error.response?.data?.error || 'Failed to place order', 'error');
-      }
-    } finally {
-      setLoading(false);
+    if (!stripePromise) {
+      showToast('Payment system is not configured', 'error');
+      return;
     }
+
+    // Show checkout modal with Stripe
+    setShowCheckout(true);
+  };
+
+  const handleCheckoutSuccess = (orderId) => {
+    localStorage.removeItem('cart');
+    setCart([]);
+    navigate('/customer/orders');
   };
 
   return (
@@ -228,7 +230,7 @@ const CustomerCart = () => {
                     disabled={loading}
                     className="w-full bg-primary-gradient text-white py-4 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 transform hover:scale-[1.02] disabled:transform-none"
                   >
-                    {loading ? 'Processing...' : 'Place Order'}
+                    {loading ? 'Processing...' : 'Proceed to Payment'}
                   </button>
                 </div>
               </>
@@ -236,6 +238,24 @@ const CustomerCart = () => {
           </div>
         </div>
       </div>
+
+      {/* Stripe Checkout Modal */}
+      {showCheckout && stripePromise && (
+        <Elements stripe={stripePromise}>
+          <CheckoutModal
+            cartData={{
+              items: cart,
+              subtotal,
+              tax,
+              tip,
+              total,
+              email: userEmail,
+            }}
+            onClose={() => setShowCheckout(false)}
+            onSuccess={handleCheckoutSuccess}
+          />
+        </Elements>
+      )}
     </div>
   );
 };

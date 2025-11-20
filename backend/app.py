@@ -15,11 +15,17 @@ from functools import wraps
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
+import stripe
 
 load_dotenv(".env.local")
 load_dotenv()
 
 SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+
+# Initialize Stripe
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
 conn.autocommit = True
@@ -1130,6 +1136,96 @@ def staff_profile():
 def get_time_slots():
     """Get available time slots"""
     return jsonify(TIME_SLOTS)
+
+
+# ==================== STRIPE PAYMENT ====================
+
+@app.route('/api/create-payment-intent', methods=['POST'])
+@login_required
+def create_payment_intent():
+    """Create a Stripe PaymentIntent for the order"""
+    if not STRIPE_SECRET_KEY:
+        return jsonify({'error': 'Stripe is not configured'}), 500
+    
+    data = request.json or {}
+    user = get_session_user() or {}
+    email = user.get('email', '')
+    items = data.get('items', [])
+    subtotal = float(data.get('subtotal', 0))
+    tax = float(data.get('tax', 0))
+    tip = float(data.get('tip', 0))
+    total = float(data.get('total', 0))
+
+    if not items or total <= 0:
+        return jsonify({'error': 'Invalid order amount'}), 400
+
+    # Check for allergy conflicts before creating payment intent
+    allergies = parse_allergies(user.get('allergies', ''))
+    conflicts = detect_allergy_conflicts(items, allergies)
+    if conflicts:
+        return jsonify({
+            'error': 'Allergy alert: please review your cart before ordering.',
+            'conflicts': conflicts
+        }), 400
+
+    try:
+        # Create payment intent (amount in cents)
+        intent = stripe.PaymentIntent.create(
+            amount=int(round(total * 100)),  # Convert to cents
+            currency='usd',
+            metadata={
+                'email': email,
+                'subtotal': str(subtotal),
+                'tax': str(tax),
+                'tip': str(tip),
+            },
+            description=f'Order from {email}'
+        )
+        
+        return jsonify({
+            'success': True,
+            'clientSecret': intent.client_secret,
+            'paymentIntentId': intent.id
+        })
+    except stripe.error.StripeError as e:
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/api/confirm-payment', methods=['POST'])
+@login_required
+def confirm_payment():
+    """Confirm payment and create the order"""
+    data = request.json or {}
+    user = get_session_user() or {}
+    email = user.get('email', '')
+    
+    payment_intent_id = data.get('paymentIntentId')
+    items = data.get('items', [])
+    subtotal = data.get('subtotal', 0)
+    tax = data.get('tax', 0)
+    tip = data.get('tip', 0)
+    total = data.get('total', 0)
+
+    if not payment_intent_id or not items:
+        return jsonify({'error': 'Missing payment or order details'}), 400
+
+    try:
+        # Retrieve the payment intent to verify it succeeded
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+        
+        if intent.status != 'succeeded':
+            return jsonify({'error': f'Payment status: {intent.status}'}), 400
+        
+        # Create the order in the database
+        order_id = save_order(email, items, subtotal, tax, tip, total)
+        
+        return jsonify({
+            'success': True,
+            'order_id': order_id,
+            'message': 'Order placed successfully!'
+        })
+    except stripe.error.StripeError as e:
+        return jsonify({'error': str(e)}), 400
 
 
 if __name__ == '__main__':
