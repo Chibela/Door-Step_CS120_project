@@ -271,4 +271,203 @@ const AdminSchedules = () => {
                             <p className="text-xs text-text-light mt-1">Assigned by: {schedule.manager_email}</p>
                           </div>
                         </div>
+                        <div className="flex flex-wrap gap-6 items-center">
+                          <div className="flex items-center gap-2 text-text-light">
+                            <Calendar className="w-5 h-5" />
+                            <span>
+                              {schedule.date ? new Date(schedule.date).toLocaleDateString() : 'Date TBD'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-text-light">
+                            <Clock className="w-5 h-5" />
+                            <span>{formatTimeRange(schedule)}</span>
+                          </div>
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusBadge(schedule.status)}`}
+                          >
+                            {schedule.status}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                        {schedule.location && (
+                          <span className="px-3 py-1 bg-white rounded-full border border-gray-200 flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-primary" />
+                            {schedule.location}
+                          </span>
+                        )}
+                        {schedule.shift_type && (
+                          <span className="px-3 py-1 bg-white rounded-full border border-gray-200 flex items-center gap-1">
+                            <Briefcase className="w-3 h-3 text-primary" />
+                            {schedule.shift_type}
+                          </span>
+                        )}
+                        {schedule.priority && (
+                          <span className="px-3 py-1 bg-white rounded-full border border-gray-200 flex items-center gap-1 capitalize">
+                            <AlertTriangle className="w-3 h-3 text-red-500" />
+                            {priorityLabels[schedule.priority] || schedule.priority}
+                          </span>
+                        )}
+                      </div>
+                      {schedule.notes && (
+                        <p className="text-sm text-text-light mt-3">Notes: {schedule.notes}</p>
+                      )}
+                      <div className="mt-4 flex flex-wrap gap-3 items-center">
+                        <div>
+                          <label className="block text-xs font-semibold text-text-light mb-1">Update Status</label>
+                          <select
+                            value={schedule.status}
+                            disabled={updatingId === schedule.appointment_id}
+                            onChange={(e) => handleStatusChange(schedule.appointment_id, e.target.value)}
+                            className="px-3 py-2 border-2 border-dust-grey rounded-xl bg-white text-text-dark focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                          >
+                            {statusOptions.map((status) => (
+                              <option key={status} value={status}>
+                                {status.charAt(0).toUpperCase() + status.slice(1)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(schedule)}
+                          className="px-4 py-2 bg-white rounded-xl border border-gray-200 shadow text-sm font-semibold hover:bg-primary hover:text-white transition-all"
+                        >
+                          Edit Shift Details
+                        </button>
+                      </div>
+                      {editingId === schedule.appointment_id && (
+                        <div className="bg-white rounded-xl p-4 border border-gray-200 space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">Date</label>
+                              <input
+                                type="date"
+                                name="date"
+                                value={editForm.date}
+                                onChange={handleEditChange}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">Time Slot (label)</label>
+                              <input
+                                type="text"
+                                name="time_slot"
+                                value={editForm.time_slot}
+                                onChange={handleEditChange}
+                                placeholder="e.g., 9:00 AM"
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">Start Time</label>
+                              <input
+                                type="time"
+                                name="start_time"
+                                value={editForm.start_time}
+                                onChange={handleEditChange}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">End Time</label>
+                              <input
+                                type="time"
+                                name="end_time"
+                                value={editForm.end_time}
+                                onChange={handleEditChange}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">Location</label>
+                              <input
+                                type="text"
+                                name="location"
+                                value={editForm.location}
+                                onChange={handleEditChange}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">Shift Type</label>
+                              <select
+                                name="shift_type"
+                                value={editForm.shift_type}
+                                onChange={handleEditChange}
+                                className="w-full px-3 py-2 border rounded-lg bg-white"
+                              >
+                                {shiftOptionsDefaults.map((option) => (
+                                  <option key={option} value={option}>
+                                    {option}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-semibold text-text-light mb-1">Priority</label>
+                              <select
+                                name="priority"
+                                value={editForm.priority}
+                                onChange={handleEditChange}
+                                className="w-full px-3 py-2 border rounded-lg bg-white capitalize"
+                              >
+                                {Object.keys(priorityLabels).map((key) => (
+                                  <option key={key} value={key}>
+                                    {priorityLabels[key]}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="block text-xs font-semibold text-text-light mb-1">Notes</label>
+                              <textarea
+                                name="notes"
+                                value={editForm.notes}
+                                onChange={handleEditChange}
+                                rows={3}
+                                className="w-full px-3 py-2 border rounded-lg"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={closeEdit}
+                              className="flex items-center gap-1 px-4 py-2 text-sm font-semibold text-text-light hover:text-text-dark"
+                            >
+                              <X className="w-4 h-4" />
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updatingId === schedule.appointment_id}
+                              onClick={() => handleEditSubmit(schedule.appointment_id)}
+                              className="flex items-center gap-1 px-4 py-2 bg-primary-gradient text-white rounded-xl shadow disabled:opacity-60"
+                            >
+                              <Save className="w-4 h-4" />
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-12">
+                    <Calendar className="w-16 h-16 text-dust-grey mx-auto mb-4" />
+                    <p className="text-text-light text-lg">No schedules found</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AdminSchedules;
 
