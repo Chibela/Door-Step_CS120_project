@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, User, Check } from 'lucide-react';
+import { Calendar, Clock, User, Check, MapPin, Briefcase, AlertTriangle } from 'lucide-react';
 import Header from '../../components/Admin/Header';
 import Sidebar from '../../components/Admin/Sidebar';
 import { getStaffList, getTimeSlots, createAppointment } from '../../services/api';
@@ -12,12 +12,53 @@ const BookAppointment = () => {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
   const [notes, setNotes] = useState('');
+  const [location, setLocation] = useState('Main Truck');
+  const [shiftType, setShiftType] = useState('Prep Shift');
+  const [priority, setPriority] = useState('normal');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [loading, setLoading] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
     loadData();
   }, []);
+
+  const shiftTypeOptions = [
+    'Prep Shift',
+    'Lunch Service',
+    'Dinner Service',
+    'Event / Catering',
+    'Inventory & Restock',
+  ];
+
+  const priorityOptions = ['low', 'normal', 'high', 'critical'];
+
+  const slotToTime = (slot) => {
+    if (!slot) return '';
+    const [time, meridiem] = slot.split(' ');
+    if (!time || !meridiem) return '';
+    let [hours, minutes] = time.split(':');
+    let h = parseInt(hours, 10);
+    if (meridiem.toUpperCase() === 'PM' && h !== 12) h += 12;
+    if (meridiem.toUpperCase() === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${minutes || '00'}`;
+  };
+
+  const updateTimesFromSlot = (slot) => {
+    const base = slotToTime(slot);
+    setStartTime(base);
+    if (base) {
+      const [h, m] = base.split(':').map((v) => parseInt(v, 10));
+      const end = new Date();
+      end.setHours(h);
+      end.setMinutes(m);
+      end.setHours(end.getHours() + 2);
+      setEndTime(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`);
+    } else {
+      setEndTime('');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -39,6 +80,9 @@ const BookAppointment = () => {
       return;
     }
 
+    const startIso = startTime ? `${selectedDate}T${startTime}:00` : null;
+    const endIso = endTime ? `${selectedDate}T${endTime}:00` : null;
+
     setLoading(true);
     try {
       await createAppointment({
@@ -46,12 +90,22 @@ const BookAppointment = () => {
         date: selectedDate,
         time_slot: selectedTime,
         notes,
+        location,
+        shift_type: shiftType,
+        priority,
+        start_time: startIso,
+        end_time: endIso,
       });
       showToast('Appointment booked successfully!', 'success');
       setSelectedStaff('');
       setSelectedDate('');
       setSelectedTime('');
       setNotes('');
+      setLocation('Main Truck');
+      setShiftType('Prep Shift');
+      setPriority('normal');
+      setStartTime('');
+      setEndTime('');
     } catch (error) {
       showToast(error.response?.data?.error || 'Failed to book appointment', 'error');
     } finally {
@@ -119,7 +173,10 @@ const BookAppointment = () => {
                   <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
                   <select
                     value={selectedTime}
-                    onChange={(e) => setSelectedTime(e.target.value)}
+                    onChange={(e) => {
+                      setSelectedTime(e.target.value);
+                      updateTimesFromSlot(e.target.value);
+                    }}
                     className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all text-text-dark bg-white"
                     required
                   >
@@ -127,6 +184,78 @@ const BookAppointment = () => {
                     {timeSlots.map((slot) => (
                       <option key={slot} value={slot}>
                         {slot}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">Start Time</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">End Time</label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">Location</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="e.g., Downtown Pop-Up"
+                      className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-dark mb-2">Shift Type</label>
+                  <div className="relative">
+                    <Briefcase className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
+                    <select
+                      value={shiftType}
+                      onChange={(e) => setShiftType(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                    >
+                      {shiftTypeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-text-dark mb-2">Priority</label>
+                <div className="relative">
+                  <AlertTriangle className="absolute left-3 top-1/2 transform -translate-y-1/2 text-text-light w-5 h-5" />
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all bg-white"
+                  >
+                    {priorityOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option.charAt(0).toUpperCase() + option.slice(1)}
                       </option>
                     ))}
                   </select>

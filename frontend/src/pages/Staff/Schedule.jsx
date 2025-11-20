@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useMemo } from 'react';
-import { Calendar, Clock, CheckCircle, XCircle, ClipboardCheck, AlertCircle } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, XCircle, ClipboardCheck, AlertCircle, MapPin, Briefcase } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { getSchedules, updateAppointment } from '../../services/api';
@@ -31,6 +31,10 @@ const StaffSchedule = () => {
   };
 
   const convertToDateObj = (schedule) => {
+    if (schedule.start_time) {
+      const parsed = new Date(schedule.start_time);
+      return isNaN(parsed.getTime()) ? null : parsed;
+    }
     if (!schedule.date || !schedule.time_slot) return null;
     const [time, meridiem] = schedule.time_slot.split(' ');
     if (!time) return null;
@@ -127,6 +131,25 @@ const StaffSchedule = () => {
 
   const actionItems = upcomingSchedules.slice(0, 3);
 
+  const formatShiftMeta = (schedule) => {
+    const pieces = [];
+    if (schedule.location) pieces.push(schedule.location);
+    if (schedule.shift_type) pieces.push(schedule.shift_type);
+    if (schedule.start_time && schedule.end_time) {
+      const start = new Date(schedule.start_time);
+      const end = new Date(schedule.end_time);
+      pieces.push(
+        `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        })}`
+      );
+    } else if (schedule.time_slot) {
+      pieces.push(schedule.time_slot);
+    }
+    return pieces.join(' • ');
+  };
+
   return (
     <div className="min-h-screen bg-app-gradient p-6">
       <StaffHeader subtitle="Staff Schedule" />
@@ -160,8 +183,10 @@ const StaffSchedule = () => {
               {actionItems.map((schedule) => (
                 <div key={`action-${schedule.appointment_id}`} className="p-4 rounded-xl bg-dust-grey/40 flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-text-dark">{schedule.time_slot}</p>
-                    <p className="text-xs text-text-light">{schedule.date}</p>
+                    <p className="font-semibold text-text-dark">{formatShiftMeta(schedule)}</p>
+                    <p className="text-xs text-text-light">
+                      {schedule.date ? new Date(schedule.date).toLocaleDateString() : 'TBD'}
+                    </p>
                     <p className="text-xs text-text-light">Manager: {schedule.manager_email}</p>
                   </div>
                   <div className="flex gap-2">
@@ -227,12 +252,24 @@ const StaffSchedule = () => {
                             <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
                               <Clock className="w-6 h-6 text-primary" />
                             </div>
-                            <div>
-                              <p className="font-semibold text-text-dark">{schedule.time_slot}</p>
-                              <p className="text-sm text-text-light">Manager: {schedule.manager_email}</p>
-                              {schedule.notes && (
-                                <p className="text-xs text-text-light mt-1">Notes: {schedule.notes}</p>
-                              )}
+                          <div className="space-y-1">
+                            <p className="font-semibold text-text-dark">{formatShiftMeta(schedule)}</p>
+                            <p className="text-sm text-text-light">Manager: {schedule.manager_email}</p>
+                            {schedule.location && (
+                              <p className="text-xs text-text-light flex items-center gap-1">
+                                <MapPin className="w-3 h-3" />
+                                {schedule.location}
+                              </p>
+                            )}
+                            {schedule.shift_type && (
+                              <p className="text-xs text-text-light flex items-center gap-1">
+                                <Briefcase className="w-3 h-3" />
+                                {schedule.shift_type}
+                              </p>
+                            )}
+                            {schedule.notes && (
+                              <p className="text-xs text-text-light">Notes: {schedule.notes}</p>
+                            )}
                             </div>
                           </div>
                           <span

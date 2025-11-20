@@ -44,6 +44,35 @@ def ensure_users_allergies_column():
 
 ensure_users_allergies_column()
 
+
+def ensure_schedules_columns():
+    columns = {
+        'start_time': "ALTER TABLE schedules ADD COLUMN start_time TEXT",
+        'end_time': "ALTER TABLE schedules ADD COLUMN end_time TEXT",
+        'location': "ALTER TABLE schedules ADD COLUMN location TEXT",
+        'shift_type': "ALTER TABLE schedules ADD COLUMN shift_type TEXT",
+        'staff_notes': "ALTER TABLE schedules ADD COLUMN staff_notes TEXT",
+        'priority': "ALTER TABLE schedules ADD COLUMN priority TEXT",
+    }
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'schedules'
+                """
+            )
+            existing = {row['column_name'] for row in cur.fetchall()}
+        for column, statement in columns.items():
+            if column not in existing:
+                with conn.cursor() as cur:
+                    cur.execute(statement)
+    except Exception as e:
+        print(f"Warning: unable to ensure schedules columns: {e}")
+
+
+ensure_schedules_columns()
+
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
@@ -111,6 +140,14 @@ ALLERGEN_KEYWORDS = {
     'fish': ['fish', 'salmon', 'tuna', 'cod', 'trout', 'anchovy', 'tilapia'],
     'sesame': ['sesame', 'tahini'],
 }
+
+DEFAULT_SHIFT_TYPES = [
+    'Prep Shift',
+    'Lunch Service',
+    'Dinner Service',
+    'Event / Catering',
+    'Inventory & Restock',
+]
 
 
 def read_users():
@@ -276,11 +313,17 @@ def save_order(email, items, subtotal, tax, tip, total):
     return order_id
 
 
-def save_appointment(manager_email, staff_email, staff_name, date, time_slot, status='scheduled', notes=''):
+def save_appointment(manager_email, staff_email, staff_name, date, time_slot, status='scheduled', notes='', start_time=None, end_time=None, location='', shift_type='', priority='normal'):
     appointment_id = f"APT{int(datetime.now().timestamp() * 1000)}"
+    iso_start = start_time or parse_time_string(date, time_slot)
+    if not end_time and iso_start:
+        default_end = datetime.fromisoformat(iso_start) + timedelta(hours=2)
+        iso_end = default_end.isoformat()
+    else:
+        iso_end = end_time
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO schedules (appointment_id, manager_email, staff_email, staff_name, date, time_slot, status, notes, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO schedules (appointment_id, manager_email, staff_email, staff_name, date, time_slot, status, notes, created_at, start_time, end_time, location, shift_type, staff_notes, priority) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 appointment_id,
                 manager_email,
@@ -291,6 +334,12 @@ def save_appointment(manager_email, staff_email, staff_name, date, time_slot, st
                 status,
                 notes,
                 datetime.now().isoformat(),
+                iso_start,
+                iso_end,
+                location,
+                shift_type,
+                '',
+                priority or 'normal'
             ),
         )
     return appointment_id
@@ -331,6 +380,71 @@ def detect_allergy_conflicts(items, allergies):
                 'item': item.get('name', 'Menu item'),
                 'allergies': sorted(item_conflicts)
             })
+    return conflicts
+
+
+def parse_time_string(date_str, time_value):
+    """Convert various time inputs into ISO string."""
+    if not date_str:
+        return None
+    if not time_value:
+        return None
+    try:
+        # If already ISO-like
+        if 'T' in time_value:
+            return time_value
+        time_value = time_value.strip()
+        if ' ' in time_value:
+            time_part, meridiem = time_value.split()
+            hour_str, minute_str = time_part.split(':')
+            hours = int(hour_str)
+            minutes = int(minute_str)
+            meridiem = meridiem.upper()
+            if meridiem == 'PM' and hours != 12:
+                hours += 12
+            if meridiem == 'AM' and hours == 12:
+                hours = 0
+        else:
+            hour_str, minute_str = time_value.split(':')
+            hours = int(hour_str)
+            minutes = int(minute_str)
+        return f"{date_str}T{str(hours).zfill(2)}:{str(minutes).zfill(2)}:00"
+    except Exception:
+        return None
+
+
+def overlap(a_start, a_end, b_start, b_end):
+    if not a_start or not a_end or not b_start or not b_end:
+        return False
+    try:
+        a_start_dt = datetime.fromisoformat(a_start)
+        a_end_dt = datetime.fromisoformat(a_end)
+        b_start_dt = datetime.fromisoformat(b_start)
+        b_end_dt = datetime.fromisoformat(b_end)
+        return max(a_start_dt, b_start_dt) < min(a_end_dt, b_end_dt)
+    except Exception:
+        return False
+
+
+def check_schedule_conflicts(staff_email, start_time, end_time, appointment_id=None):
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT appointment_id, start_time, end_time, date, time_slot
+            FROM schedules
+            WHERE LOWER(staff_email) = %s
+            """,
+            (staff_email.lower(),)
+        )
+        rows = cur.fetchall()
+    conflicts = []
+    for row in rows:
+        if appointment_id and row['appointment_id'] == appointment_id:
+            continue
+        existing_start = row.get('start_time') or parse_time_string(row.get('date'), row.get('time_slot'))
+        existing_end = row.get('end_time')
+        if overlap(start_time, end_time, existing_start, existing_end):
+            conflicts.append(row['appointment_id'])
     return conflicts
 
 
@@ -543,6 +657,11 @@ def create_appointment():
     date = data.get('date', '').strip()
     time_slot = data.get('time_slot', '').strip()
     notes = data.get('notes', '').strip()
+    location = (data.get('location') or 'Main Truck').strip()
+    shift_type = (data.get('shift_type') or DEFAULT_SHIFT_TYPES[0]).strip()
+    priority = (data.get('priority') or 'normal').strip()
+    start_time = data.get('start_time')
+    end_time = data.get('end_time')
     
     if not all([staff_email, date, time_slot]):
         return jsonify({'success': False, 'error': 'All fields are required'}), 400
@@ -553,12 +672,29 @@ def create_appointment():
     
     staff_name = f"{staff_user.get('first_name', '').strip()} {staff_user.get('last_name', '').strip()}".strip() or staff_user.get('email')
     
-    schedules = read_schedules()
-    for s in schedules:
-        if s.get('staff_email', '').lower() == staff_email and s.get('date') == date and s.get('time_slot') == time_slot:
-            return jsonify({'success': False, 'error': 'Time slot already booked'}), 400
+    iso_start = start_time or parse_time_string(date, time_slot)
+    iso_end = end_time
+    if not iso_end and iso_start:
+        iso_end = (datetime.fromisoformat(iso_start) + timedelta(hours=2)).isoformat()
+
+    conflicts = check_schedule_conflicts(staff_email, iso_start, iso_end)
+    if conflicts:
+        return jsonify({'success': False, 'error': 'Staff already scheduled for that time', 'conflicts': conflicts}), 400
     
-    appointment_id = save_appointment(manager_email, staff_email, staff_name, date, time_slot, status='scheduled', notes=notes)
+    appointment_id = save_appointment(
+        manager_email,
+        staff_email,
+        staff_name,
+        date,
+        time_slot,
+        status='scheduled',
+        notes=notes,
+        start_time=iso_start,
+        end_time=iso_end,
+        location=location,
+        shift_type=shift_type,
+        priority=priority
+    )
     
     return jsonify({
         'success': True,
@@ -605,7 +741,6 @@ def update_schedule(appointment_id):
     # Load current schedule
     schedules = read_schedules()
     current = next((s for s in schedules if s.get('appointment_id') == appointment_id), None)
-
     if not current:
         return jsonify({'error': 'Appointment not found'}), 404
 
@@ -616,25 +751,53 @@ def update_schedule(appointment_id):
     updates = {}
 
     # Admin can reassign and change date/time
+    new_staff_email = current.get('staff_email', '').lower()
+
     if role == 'admin':
-        new_staff_email = data.get('staff_email')
-        if new_staff_email:
-            staff_user = get_user_by_email(new_staff_email)
+        staff_email_override = data.get('staff_email')
+        if staff_email_override:
+            staff_user = get_user_by_email(staff_email_override)
             if not staff_user or staff_user.get('role') != 'staff':
                 return jsonify({'error': 'Staff member not found'}), 404
-            updates['staff_email'] = staff_user.get('email').lower()
+            new_staff_email = staff_user.get('email').lower()
+            updates['staff_email'] = new_staff_email
             updates['staff_name'] = f"{staff_user.get('first_name', '').strip()} {staff_user.get('last_name', '').strip()}".strip() or staff_user.get('email')
+
+        new_date = data.get('date') or current.get('date')
+        new_time_slot = data.get('time_slot') or current.get('time_slot')
+        new_start_time = data.get('start_time') or current.get('start_time') or parse_time_string(new_date, new_time_slot)
+        new_end_time = data.get('end_time') or current.get('end_time')
+        if not new_end_time and new_start_time:
+            new_end_time = (datetime.fromisoformat(new_start_time) + timedelta(hours=2)).isoformat()
 
         if data.get('date'):
             updates['date'] = data['date']
         if data.get('time_slot'):
             updates['time_slot'] = data['time_slot']
+        if data.get('start_time'):
+            updates['start_time'] = new_start_time
+        if data.get('end_time'):
+            updates['end_time'] = new_end_time
+
+        if data.get('location') is not None:
+            updates['location'] = data.get('location')
+        if data.get('shift_type') is not None:
+            updates['shift_type'] = data.get('shift_type')
+        if data.get('priority') is not None:
+            updates['priority'] = data.get('priority')
+
+        if new_start_time and new_end_time:
+            conflicts = check_schedule_conflicts(new_staff_email, new_start_time, new_end_time, appointment_id=appointment_id)
+            if conflicts:
+                return jsonify({'error': 'Schedule conflict detected', 'conflicts': conflicts}), 400
 
     # Both admin and staff can update status and notes
     if data.get('status'):
         updates['status'] = data['status']
     if data.get('notes') is not None:
         updates['notes'] = data.get('notes', '')
+    if data.get('staff_notes') is not None:
+        updates['staff_notes'] = data.get('staff_notes', '')
 
     updated_schedule = update_schedule_record(appointment_id, updates)
     if not updated_schedule:
