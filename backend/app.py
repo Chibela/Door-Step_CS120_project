@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import Counter
 from functools import wraps
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -21,12 +22,37 @@ import stripe
 load_dotenv(".env.local")
 load_dotenv()
 
-SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+def ensure_pooler_params(url_value):
+    """Supabase pooler requires ?pgbouncer=true for transaction mode to avoid session connection limits."""
+    if not url_value:
+        return url_value
+    parsed = urlparse(url_value)
+    if not parsed.hostname:
+        return url_value
 
-# Initialize Stripe
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY")
-if STRIPE_SECRET_KEY:
-    stripe.api_key = STRIPE_SECRET_KEY
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    changed = False
+
+    # Always enforce SSL
+    if query.get('sslmode', '').lower() not in {'require', 'verify-ca', 'verify-full'}:
+        query['sslmode'] = 'require'
+        changed = True
+
+    if parsed.hostname.endswith('.pooler.supabase.com'):
+        if query.get('pgbouncer', '').lower() != 'true':
+            query['pgbouncer'] = 'true'
+            changed = True
+
+    if not changed:
+        return url_value
+
+    new_query = urlencode(query)
+    rebuilt = urlunparse(parsed._replace(query=new_query))
+    print("[database] adjusted SUPABASE_DB_URL to include pgbouncer/ssl parameters")
+    return rebuilt
+
+
+SUPABASE_DB_URL = ensure_pooler_params(os.getenv("SUPABASE_DB_URL"))
 
 conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
 conn.autocommit = True
