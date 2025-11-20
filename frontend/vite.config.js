@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+if (!process.env.ROLLUP_SKIP_NODEJS_NATIVE) {
+  process.env.ROLLUP_SKIP_NODEJS_NATIVE = 'true';
+}
+
 export default defineConfig({
   plugins: [react()],
   server: {
