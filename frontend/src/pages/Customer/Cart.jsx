@@ -67,7 +67,15 @@ const CustomerCart = () => {
       showToast('Order placed successfully!', 'success');
       navigate('/customer/orders');
     } catch (error) {
-      showToast('Failed to place order', 'error');
+      const conflicts = error.response?.data?.conflicts;
+      if (conflicts?.length) {
+        const details = conflicts
+          .map(conflict => `${conflict.item}: ${conflict.allergies.join(', ')}`)
+          .join('; ');
+        showToast(`Allergy alert – remove or replace these items: ${details}`, 'warning');
+      } else {
+        showToast(error.response?.data?.error || 'Failed to place order', 'error');
+      }
     } finally {
       setLoading(false);
     }

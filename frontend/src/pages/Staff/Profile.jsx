@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { Mail, Phone, MapPin, Calendar, UserCircle } from 'lucide-react';
+import { Mail, Phone, MapPin, Calendar, UserCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
 import { getStaffProfile, updateStaffProfile } from '../../services/api';
@@ -179,6 +179,18 @@ const StaffProfile = () => {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-text-light mb-2">Allergies</label>
+                      <textarea
+                        name="allergies"
+                        value={formData.allergies || ''}
+                        onChange={handleChange}
+                        rows={3}
+                        placeholder="List allergens separated by commas"
+                        className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                      />
+                      <p className="text-xs text-text-light mt-1">We’ll warn you when menu items contain these ingredients.</p>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-text-light mb-2">Change Password</label>
                       <input
                         type="password"
@@ -236,6 +248,15 @@ const StaffProfile = () => {
                       <div>
                         <p className="text-sm text-text-light">Sex</p>
                         <p className="font-semibold text-text-dark">{user.sex || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-4 bg-red-50 rounded-xl border border-red-100">
+                      <AlertTriangle className="w-5 h-5 text-red-500" />
+                      <div>
+                        <p className="text-sm text-red-500">Allergies</p>
+                        <p className="font-semibold text-text-dark">
+                          {user.allergies?.trim() ? user.allergies : 'None provided'}
+                        </p>
                       </div>
                     </div>
                   </div>

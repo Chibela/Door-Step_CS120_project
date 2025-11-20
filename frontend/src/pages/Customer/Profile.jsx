@@ -94,6 +94,17 @@ const CustomerProfile = () => {
                       <p className="font-semibold text-gray-900">{user.sex || 'N/A'}</p>
                     </div>
                   </div>
+
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl md:col-span-2">
+                    <User className="w-5 h-5 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-500">Allergies</p>
+                      <p className="font-semibold text-gray-900">
+                        {user.allergies?.trim() ? user.allergies : 'None provided'}
+                      </p>
+                      <p className="text-xs text-gray-500">We’ll warn you during checkout if an item contains these allergens.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

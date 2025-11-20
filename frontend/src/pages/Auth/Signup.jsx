@@ -16,6 +16,7 @@ const Signup = () => {
     address: '',
     dob: '',
     sex: '',
+    allergies: '',
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -178,6 +179,21 @@ const Signup = () => {
                 required
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Allergies (comma separated)
+            </label>
+            <textarea
+              name="allergies"
+              value={formData.allergies}
+              onChange={handleChange}
+              placeholder="e.g., peanuts, dairy"
+              className="w-full px-4 py-3 border-2 border-dust-grey rounded-xl transition-all focus:ring-2 focus:ring-primary focus:border-primary"
+              rows={3}
+            />
+            <p className="text-xs text-gray-500 mt-1">Optional – we’ll warn you if menu items contain these allergens.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

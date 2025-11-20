@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Users, Mail, Phone, MapPin, Calendar } from 'lucide-react';
+import { Plus, Users, Mail, Phone, MapPin, Calendar, AlertTriangle } from 'lucide-react';
 import Header from '../../components/Admin/Header';
 import Sidebar from '../../components/Admin/Sidebar';
 import { getStaffList, createStaff, updateStaff } from '../../services/api';
@@ -13,7 +13,8 @@ const initialFormState = {
   mobile: '',
   address: '',
   dob: '',
-  sex: ''
+  sex: '',
+  allergies: '',
 };
 
 const AdminStaff = () => {
@@ -173,6 +174,12 @@ const AdminStaff = () => {
                         <span>{member.dob}</span>
                       </div>
                     )}
+                    {member.allergies && (
+                      <div className="flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-red-500" />
+                        <span className="text-red-500">Allergies: {member.allergies}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))
@@ -290,6 +297,20 @@ const AdminStaff = () => {
                         <option value="O">Other</option>
                       </select>
                     </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-light mb-2">Allergies (optional)</label>
+                    <textarea
+                      name="allergies"
+                      value={formData.allergies}
+                      onChange={handleChange}
+                      rows={3}
+                      placeholder="e.g., shellfish, peanuts"
+                      className="w-full px-4 py-2 border-2 border-dust-grey rounded-xl focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                    />
+                    <p className="text-xs text-text-light mt-1">
+                      Helps flag risky menu items when this staff member places an order.
+                    </p>
                   </div>
                   <div className="flex justify-end gap-3">
                     <button

@@ -24,6 +24,26 @@ SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
 conn = psycopg2.connect(SUPABASE_DB_URL, cursor_factory=RealDictCursor)
 conn.autocommit = True
 
+
+def ensure_users_allergies_column():
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'users' AND column_name = 'allergies'
+                """
+            )
+            exists = cur.fetchone()
+        if not exists:
+            with conn.cursor() as cur:
+                cur.execute("ALTER TABLE users ADD COLUMN allergies TEXT DEFAULT ''")
+    except Exception as e:
+        print(f"Warning: unable to ensure allergies column: {e}")
+
+
+ensure_users_allergies_column()
+
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "dev-secret-key-change-me")
 
@@ -81,6 +101,17 @@ MENU = load_menu_from_cache()
 
 TIME_SLOTS = ['9:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '1:00 PM', '2:00 PM', '3:00 PM', '4:00 PM', '5:00 PM']
 
+ALLERGEN_KEYWORDS = {
+    'dairy': ['dairy', 'milk', 'cheese', 'butter', 'cream', 'yogurt'],
+    'nuts': ['nut', 'nuts', 'peanut', 'peanuts', 'almond', 'walnut', 'cashew', 'pecan', 'hazelnut', 'pistachio'],
+    'gluten': ['gluten', 'wheat', 'barley', 'rye', 'bread', 'bun', 'pasta', 'flour'],
+    'shellfish': ['shellfish', 'shrimp', 'lobster', 'crab', 'clam', 'mussel', 'oyster', 'scallop'],
+    'soy': ['soy', 'soybean', 'tofu', 'edamame'],
+    'egg': ['egg', 'eggs'],
+    'fish': ['fish', 'salmon', 'tuna', 'cod', 'trout', 'anchovy', 'tilapia'],
+    'sesame': ['sesame', 'tahini'],
+}
+
 
 def read_users():
     with conn.cursor() as cur:
@@ -119,7 +150,8 @@ def sanitize_user(user):
         'address': user.get('address', ''),
         'dob': user.get('dob', ''),
         'sex': user.get('sex', ''),
-        'role': user.get('role', '')
+        'role': user.get('role', ''),
+        'allergies': user.get('allergies', '')
     }
 
 
@@ -204,10 +236,10 @@ def update_order_record(order_id, updates):
     return dict(row)
 
 
-def save_user(email, password, first_name, last_name, mobile, address, dob, sex, role='customer'):
+def save_user(email, password, first_name, last_name, mobile, address, dob, sex, role='customer', allergies=''):
     with conn.cursor() as cur:
         cur.execute(
-            "INSERT INTO users (email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO users (email, password, first_name, last_name, mobile, address, dob, sex, registration_date, role, allergies) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 email.lower(),
                 generate_password_hash(password),
@@ -219,6 +251,7 @@ def save_user(email, password, first_name, last_name, mobile, address, dob, sex,
                 sex,
                 datetime.now().isoformat(),
                 role,
+                allergies,
             ),
         )
 
@@ -261,6 +294,44 @@ def save_appointment(manager_email, staff_email, staff_name, date, time_slot, st
             ),
         )
     return appointment_id
+
+
+def parse_allergies(raw):
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        values = raw
+    else:
+        values = [part.strip() for part in str(raw).replace(';', ',').split(',')]
+    return [value.lower() for value in values if value]
+
+
+def allergy_search_terms(allergy):
+    allergy = allergy.lower()
+    for base, keywords in ALLERGEN_KEYWORDS.items():
+        if allergy == base or allergy in keywords:
+            return list(set(keywords + [base]))
+    return [allergy]
+
+
+def detect_allergy_conflicts(items, allergies):
+    conflicts = []
+    if not items or not allergies:
+        return conflicts
+
+    for item in items:
+        text = f"{item.get('name', '')} {item.get('description', '')}".lower()
+        item_conflicts = set()
+        for allergy in allergies:
+            for term in allergy_search_terms(allergy):
+                if term and term in text:
+                    item_conflicts.add(allergy)
+        if item_conflicts:
+            conflicts.append({
+                'item': item.get('name', 'Menu item'),
+                'allergies': sorted(item_conflicts)
+            })
+    return conflicts
 
 
 def login_required(f):
@@ -333,7 +404,8 @@ def signup():
         data['address'].strip(),
         data['dob'].strip(),
         data['sex'].strip(),
-        role='customer'
+        role='customer',
+        allergies=data.get('allergies', '').strip()
     )
 
     session['user_id'] = email
@@ -402,6 +474,15 @@ def create_order():
     tax = data.get('tax', 0)
     tip = data.get('tip', 0)
     total = data.get('total', 0)
+
+    allergies = parse_allergies(user.get('allergies', ''))
+    conflicts = detect_allergy_conflicts(items, allergies)
+    if conflicts:
+        return jsonify({
+            'success': False,
+            'error': 'Allergy alert: please review your cart before ordering.',
+            'conflicts': conflicts
+        }), 400
     
     order_id = save_order(email, items, subtotal, tax, tip, total)
     
@@ -664,7 +745,8 @@ def create_staff_user():
         data.get('address', ''),
         data.get('dob', ''),
         data.get('sex', ''),
-        role='staff'
+        role='staff',
+        allergies=data.get('allergies', '').strip()
     )
 
     user = get_user_by_email(email)
@@ -683,7 +765,8 @@ def update_staff_user(email):
         'address': data.get('address'),
         'dob': data.get('dob'),
         'sex': data.get('sex'),
-        'password': data.get('password')
+        'password': data.get('password'),
+        'allergies': data.get('allergies')
     }
     success = update_user_record(email, updates)
     if not success:
@@ -712,7 +795,8 @@ def staff_profile():
         'address': data.get('address'),
         'dob': data.get('dob'),
         'sex': data.get('sex'),
-        'password': data.get('password')
+        'password': data.get('password'),
+        'allergies': data.get('allergies')
     }
     success = update_user_record(email, updates)
     if not success:
